@@ -13,6 +13,18 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/splash-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/splash-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/splash-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/splash-1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/splash-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/splash-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/splash-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/splash-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/splash-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/splash-750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/splash-640x1136.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -278,12 +290,18 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 
 /* Intestazioni con selettore di mese/anno: titolo e selettore sulla stessa riga anche su telefono */
 .lbl-short{display:none}
-:root{--splash:#D5E1E8;--splash-fg:#4F6475}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--splash:#25232A;--splash-fg:#B3CAD8}}
-:root[data-theme="dark"]{--splash:#25232A;--splash-fg:#B3CAD8}
-.splash{position:fixed;inset:0;z-index:200;background:var(--splash);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center;transition:opacity .35s ease}
-.splash img{width:96px;height:96px;border-radius:24px;box-shadow:0 10px 30px rgba(47,44,51,.14)}
-.splash p{margin:0;color:var(--splash-fg);font-size:.95rem;font-weight:500;letter-spacing:.03em;max-width:300px}
+.prop-actions{display:flex;flex-wrap:nowrap;gap:8px;margin:0 0 4px;overflow-x:auto;scrollbar-width:none}
+.prop-actions::-webkit-scrollbar{display:none}
+.prop-actions .btn{flex:none;white-space:nowrap}
+.page-total{margin:-4px 0 2px}.page-total .v{font-family:var(--f-display);font-size:1.9rem;font-weight:700;font-variant-numeric:tabular-nums}
+.prop-addr{margin:-4px 0 10px;font-size:.85rem}
+.pc{font-size:.78em;letter-spacing:0}
+.splash{position:fixed;inset:0;z-index:200;background:#FBF7F2;transition:opacity .35s ease}
+.splash img{position:absolute;left:50%;top:50%;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:24px;box-shadow:0 8px 26px rgba(47,44,51,.10)}
+.splash p{position:absolute;left:24px;right:24px;top:calc(50% + 70px);margin:0;text-align:center;color:#8A7F73;font-size:.95rem;font-weight:500;letter-spacing:.03em;opacity:0;animation:splashTxt .3s ease .6s forwards}
+.splash.loading p{opacity:1;animation:none}
+/* la scritta compare solo se il caricamento dura più di un attimo */
+@keyframes splashTxt{to{opacity:1}}
 .splash.out{opacity:0;pointer-events:none}
 .splash .dots i{font-style:normal;animation:splashDot 1.2s infinite both}
 .splash .dots i:nth-child(2){animation-delay:.2s}.splash .dots i:nth-child(3){animation-delay:.4s}
@@ -304,6 +322,12 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 .hero .v{font-family:var(--f-display);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .hero-nw{font-size:1.9rem}
 .hero-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.hero-tiles.t4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.hero-tiles.t2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.hero .tag{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.hero .tag.neu{background:var(--surface-2);color:var(--muted)}
+.hero-bar{display:flex;flex-direction:column;gap:6px}.hero-bar-l{display:flex;justify-content:space-between;font-size:.78rem;color:var(--hero-muted)}
+.hero .hero-nw.neg{color:var(--neg)}
 .hero-tile{background:var(--hero-tile);border-radius:12px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
 .hero-tile .v{font-size:1.15rem}
 .hero .tag{font-size:.74rem;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--surface);color:var(--fg)}
@@ -341,6 +365,7 @@ section.panel.folded>.panel-h{margin-bottom:0}
   .donut-wrap{grid-template-columns:minmax(0,1fr);justify-items:center}
   .donut{width:190px}.donut-leg{width:100%}
   .hero-tile .v{font-size:1rem}
+  .hero-tiles.t4{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:370px){ .hero-tile .v{font-size:.9rem} .hero-nw{font-size:1.6rem} }
 .bank-logo{display:inline-grid;place-items:center;flex:none;border-radius:10px;overflow:hidden;background:#fff;border:1px solid var(--line)}
@@ -348,7 +373,7 @@ section.panel.folded>.panel-h{margin-bottom:0}
 .bank-logo.ini{border:0;color:#3A3340;font-weight:700;font-size:.78rem;letter-spacing:.02em}
 .eye-btn{flex:none;color:var(--muted)}
 .eye-btn[aria-pressed="true"]{color:var(--fg)}
-body.hide-summary .privacy .v,body.hide-summary .privacy .s{filter:blur(9px);user-select:none;-webkit-user-select:none;pointer-events:none}
+body.hide-summary .privacy .v,body.hide-summary .privacy .s,body.hide-summary .privacy .tx-amt,body.hide-summary .privacy .txday .num{filter:blur(9px);user-select:none;-webkit-user-select:none;pointer-events:none}
 @media (prefers-reduced-motion: no-preference){ .kpis.privacy .v,.kpis.privacy .s{transition:filter .2s ease} }
 .budget-mode-row{display:flex;justify-content:flex-end}
 .budget-mode-row .seg{min-width:220px}
@@ -424,7 +449,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
   </aside>
   <main class="main"><div class="wrap" id="view"></div></main>
 </div>
-<div class="splash" id="splash" role="status" aria-live="polite"><img src="icons/icon-192.png" alt="" width="96" height="96"><p id="splash-msg">Caricamento dati<span class="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p></div>
+<div class="splash" id="splash" role="status" aria-live="polite"><img src="icons/icon-512.png" alt="" width="96" height="96"><p id="splash-msg">Caricamento dati<span class="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p></div>
 <button class="fab" id="fab" aria-label="Nuovo movimento" data-act="new-tx">+</button>
 <div class="modal" id="modal" hidden></div>
 <div class="toast" id="toast" hidden></div>
@@ -436,7 +461,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '5'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '6'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -447,7 +472,9 @@ const nf = { format: v => { const t = (+v || 0).toFixed(4).replace(/0+$/, '').re
 const grp = (v, dec) => { const n = +v || 0, neg = n < 0 && Math.abs(n).toFixed(dec) !== (0).toFixed(dec); let [i, d] = Math.abs(n).toFixed(dec).split('.'); i = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); return (neg ? '-' : '') + i + (d ? ',' + d : ''); };
 const money = v => grp(v, 2) + '\u00a0€';
 const money0 = v => grp(Math.round(+v || 0), 0) + '\u00a0€';
-const pct = v => Number.isFinite(v) ? (v * 100).toLocaleString('it-IT', { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + '%' : '—';
+const pctT = v => Number.isFinite(v) ? (v * 100).toLocaleString('it-IT', { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + '%' : '—';
+// percentuali in un corpo più piccolo (pctT per i testi semplici, es. suggerimenti)
+const pct = v => `<span class="pc">${pctT(v)}</span>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pad = n => String(n).padStart(2, '0');
 const isoOf = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
@@ -763,6 +790,14 @@ function onFirstSync() {
   if (!S.settings.catsPT) saveSettings({ catsPT: true });
   if (S.settings.budgetsM && !S.settings.budgetsMonth) saveSettings({ budgetsMonth: S.settings.budgetsM });
   fxRefresh();
+  autoSnapshot();
+}
+// Salva in silenzio il valore del mese corrente, così il grafico ricorda gli investimenti dei mesi passati
+function autoSnapshot() {
+  const d = todayISO(), id = d.slice(0, 7), liq = sumObj(balances()), inv = investTotal(), old = S.snapshots.find(x => x.id === id);
+  if (!S.holdings.length && !old) return;
+  if (old && old.date === d && Math.abs((+old.invest || 0) - inv) < 0.5) return;
+  put('snapshots', id, { date: d, liquid: Math.round(liq * 100) / 100, invest: Math.round(inv * 100) / 100, total: Math.round((liq + inv) * 100) / 100 });
 }
 async function refresh() {
   if (!S.fs) return;
@@ -890,7 +925,11 @@ function addFolds(r) {
 // Schermata d'avvio: colore della palette, icona dell'app e "Caricamento dati"
 function splash(show, msg) {
   const el = $('#splash'); if (!el) return;
-  if (show) { el.classList.remove('out'); if (msg) $('#splash-msg').textContent = msg; return; }
+  if (show) {
+    el.classList.remove('out');
+    if (msg) { $('#splash-msg').textContent = msg; el.classList.add('loading'); }
+    return;
+  }
   if (el.classList.contains('out')) return;
   el.classList.add('out'); setTimeout(() => el.remove(), 400);
 }
@@ -959,14 +998,15 @@ const VIEWS = {};
 const SCOPED_VIEWS = ['panoramica', 'mensile', 'movimenti', 'budget'];
 const scopeBar = () => `<div class="scope-bar"><div class="seg" role="group" aria-label="Mostra">${[['tutto', 'Tutto'], ['lavoro', 'Lavoro'], ['personale', 'Personale']].map(([v, l]) => `<button type="button" data-act="scope" data-v="${v}" aria-pressed="${(S.ui.scope || 'tutto') === v}">${l}</button>`).join('')}</div></div>`;
 // Riepilogo in evidenza (stile "card" morbida): patrimonio netto, entrate, uscite, risparmio
-function heroSummary(nw, inc, out, net) {
+// Riquadro di riepilogo, uguale in tutte le sezioni: un numero grande e 3-4 caselle sotto
+// tiles: [etichetta, stile etichetta (in|out|sav|neu), valore già formattato, classe del valore]
+function heroCard(label, big, tiles, extra = '', bigCls = '') {
   return `<section class="hero privacy">
-    <div class="hero-top"><span class="eyebrow">Patrimonio netto</span><span class="v num hero-nw">${money0(nw)}</span></div>
-    <div class="hero-tiles">
-      <div class="hero-tile"><span class="tag in">Entrate</span><span class="v num pos">${money0(inc)}</span></div>
-      <div class="hero-tile"><span class="tag out">Uscite</span><span class="v num neg">${money0(out)}</span></div>
-      <div class="hero-tile"><span class="tag sav">Risparmio</span><span class="v num ${net < 0 ? 'neg' : ''}">${money0(net)}</span></div>
-    </div></section>`;
+    <div class="hero-top"><span class="eyebrow">${label}</span><span class="v num hero-nw ${bigCls}">${big}</span></div>
+    <div class="hero-tiles ${tiles.length === 4 ? 't4' : tiles.length === 2 ? 't2' : ''}">${tiles.map(([l, c, v, vc]) => `<div class="hero-tile"><span class="tag ${c}">${l}</span><span class="v num ${vc || ''}">${v}</span></div>`).join('')}</div>${extra}</section>`;
+}
+function heroSummary(nw, inc, out, net) {
+  return heroCard('Patrimonio netto', money0(nw), [['Entrate', 'in', money0(inc), 'pos'], ['Uscite', 'out', money0(out), 'neg'], ['Risparmio', 'sav', money0(net), net < 0 ? 'neg' : '']]);
 }
 // Elenco a barre delle spese per categoria (usato in Mensile e Panoramica)
 function catBars(byCat, emptyMsg) {
@@ -995,12 +1035,11 @@ function monthBudgetCard(ym, st) {
 }
 VIEWS.mensile = () => {
   const ym = S.ui.month, st = monthStats(ym);
-  const nw = sumObj(balances()) + investTotal();
   const recent = sortTx(S.transactions.filter(inScope)).slice(0, 7);
   return `
   <div class="head with-nav"><div><div class="eyebrow"><span class="lbl-long">Situazione mensile</span><span class="lbl-short">Mensile</span></div><h1>${ymLabel(ym)}</h1></div>
     <div class="head-actions">${eyeBtn()}${monthNav('month')}<button class="btn primary hide-m" data-act="new-tx">+ Movimento</button></div></div>
-  ${heroSummary(nw, st.inc, st.exp, st.net)}
+  ${heroCard('Risparmio del mese', money0(st.net), [['Entrate', 'in', money0(st.inc), 'pos'], ['Uscite', 'out', money0(st.exp), 'neg']], '', st.net < 0 ? 'neg' : '')}
   ${monthBudgetCard(ym, st)}
   <div class="grid g-2">
     <section class="panel"><div class="panel-h"><h2>Spese per categoria</h2><a class="btn small ghost" href="#budget">Budget →</a></div>
@@ -1066,7 +1105,7 @@ function catDonut(byCat) {
   let off = 0, arcs = '';
   for (const r of rows) {
     const len = r.v / tot * C;
-    arcs += `<circle r="${R}" cx="100" cy="100" fill="none" stroke="${esc(r.c?.color || '#C9CDD6')}" stroke-width="30" stroke-dasharray="${Math.max(0.01, len - gap).toFixed(2)} ${(C - Math.max(0.01, len - gap)).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 100 100)"><title>${esc(r.c?.name || 'Senza categoria')} · ${money(r.v)} (${pct(r.v / tot)})</title></circle>`;
+    arcs += `<circle r="${R}" cx="100" cy="100" fill="none" stroke="${esc(r.c?.color || '#C9CDD6')}" stroke-width="30" stroke-dasharray="${Math.max(0.01, len - gap).toFixed(2)} ${(C - Math.max(0.01, len - gap)).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 100 100)"><title>${esc(r.c?.name || 'Senza categoria')} · ${money(r.v)} (${pctT(r.v / tot)})</title></circle>`;
     off += len;
   }
   return `<div class="donut-wrap"><div class="donut"><svg viewBox="0 0 200 200" role="img" aria-label="Ripartizione delle spese per categoria">${arcs}</svg><div class="donut-c"><span class="lbl">Totale</span><span class="v num">${money0(tot)}</span></div></div>
@@ -1116,7 +1155,7 @@ VIEWS.movimenti = () => {
   const catOpts = ['spesa', 'entrata'].map(k => `<optgroup label="${k === 'spesa' ? 'Spese' : 'Entrate'}">${catsOf(k).map(c => `<option value="${esc(c.id)}" ${S.ui.fCat === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
   return `
   <div class="head with-nav"><div><div class="eyebrow">Movimenti</div><h1>${ymLabel(S.ui.month)}</h1></div>
-    <div class="head-actions">${monthNav('month')}<button class="btn primary hide-m" data-act="new-tx">+ Movimento</button></div></div>
+    <div class="head-actions">${eyeBtn()}${monthNav('month')}<button class="btn primary hide-m" data-act="new-tx">+ Movimento</button></div></div>
   <section class="panel">
     <div class="filters">
       <div class="field"><label for="f-q">Cerca</label><input class="input" id="f-q" type="search" placeholder="Descrizione, categoria, importo…" value="${esc(S.ui.q)}"></div>
@@ -1126,7 +1165,7 @@ VIEWS.movimenti = () => {
     </div>
     <label class="check" style="margin-top:10px"><input type="checkbox" id="f-all" ${S.ui.allMonths ? 'checked' : ''}> Cerca in tutti i mesi</label>
   </section>
-  <section class="panel" id="txlist">${txListFiltered()}</section>`;
+  <section class="panel privacy" id="txlist">${txListFiltered()}</section>`;
 };
 function txListFiltered() {
   const q = S.ui.q.trim().toLowerCase();
@@ -1715,16 +1754,10 @@ function budgetYearView() {
       <td class="r num ${b && b - s < 0 ? 'neg' : ''}">${b ? money0(b - s) : '<span class="muted">—</span>'}</td></tr>`;
   }).join('');
   return `
-  <div class="budget-mode-row">${budgetModeSeg()}</div>
   <div class="head with-nav"><div><div class="eyebrow"><span class="lbl-long">Budget annuale</span><span class="lbl-short">Budget</span></div><h1>Anno ${year}</h1></div><div class="head-actions">${eyeBtn()}<div class="month-nav"><button class="icon-btn" data-act="ykey" data-key="budgetYear" data-d="-1" aria-label="Anno precedente">‹</button>${yearPick('budgetYear')}<button class="icon-btn" data-act="ykey" data-key="budgetYear" data-d="1" aria-label="Anno successivo">›</button></div></div></div>
-  ${(() => { const yt = yearTotals(year); return `<section class="kpis k5 privacy">
-    <div class="kpi"><span class="eyebrow">Entrate ${year}</span><span class="v num pos">${money0(yt.inc)}</span><span class="s">${totB ? (yt.inc - totB >= 0 ? 'Margine dopo il budget ' + money0(yt.inc - totB) : 'Il budget supera le entrate di ' + money0(totB - yt.inc)) : 'Totale entrate dell\'anno'}</span></div>`; })()}
-    <div class="kpi"><span class="eyebrow">Budget annuale</span><span class="v num">${money0(totB)}</span><span class="s">${money0(totB / 12)} al mese in media</span></div>
-    <div class="kpi"><span class="eyebrow">Speso nel ${year}</span><span class="v num neg">${money0(totS)}</span><span class="s">${totB ? pct(totS / totB) + ' del budget annuale' : 'Imposta un budget'}</span></div>
-    <div class="kpi"><span class="eyebrow">Disponibile</span><span class="v num ${left < 0 ? 'neg' : 'pos'}">${money0(left)}</span><span class="s">${y.isCur ? `${12 - y.elapsed} mes${12 - y.elapsed === 1 ? 'e' : 'i'} dopo questo · ${money0(Math.max(0, left) / Math.max(1, 13 - y.elapsed))}/mese` : (y.elapsed ? 'Anno chiuso' : 'Anno non iniziato')}</span></div>
-    <div class="kpi"><span class="eyebrow">Proiezione a fine anno</span><span class="v num ${totB && y.proj > totB ? 'neg' : ''}">${y.isCur ? money0(y.proj) : money0(totS)}</span><span class="s">${y.isCur ? 'Al ritmo di spesa attuale' : 'Spesa effettiva'}</span></div>
-  </section>
-  <section class="panel"><div class="panel-h"><div><h2>Per categoria</h2><span class="muted" style="font-size:.82rem">Se non inserisci un budget annuale uso la somma dei budget dei 12 mesi. Utile per spese irregolari come viaggi, assicurazioni, tasse.</span></div><span class="muted" style="font-size:.85rem">Scrivi un importo e premi Invio</span></div>
+  <div class="budget-mode-row">${budgetModeSeg()}</div>
+  ${(() => { const yt = yearTotals(year); return heroCard('Budget annuale', money0(totB), [['Entrate', 'in', money0(yt.inc), 'pos'], ['Speso', 'out', money0(totS), 'neg'], ['Disponibile', 'sav', money0(left), left < 0 ? 'neg' : ''], [y.isCur ? 'Proiezione' : 'Speso anno', 'neu', money0(y.isCur ? y.proj : totS), totB && (y.isCur ? y.proj : totS) > totB ? 'neg' : '']]); })()}
+  <section class="panel"><div class="panel-h"><h2>Per categoria</h2></div>
     ${cats.length ? `<div class="tbl-wrap"><table><thead><tr><th>Categoria</th><th class="r">Budget annuale</th><th class="r">Speso</th><th class="r">Residuo</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty"><p>Crea prima le categorie di spesa nelle impostazioni.</p></div>`}
   </section>
   ${S.ui.scope === 'personale' ? '' : activityYearPanel(year)}`;
@@ -1747,17 +1780,12 @@ VIEWS.budget = () => {
       <td class="r num ${b && b - s < 0 ? 'neg' : ''}">${b ? money(b - s) : '<span class="muted">—</span>'}</td></tr>`;
   }).join('');
   return `
-  <div class="budget-mode-row">${budgetModeSeg()}</div>
   <div class="head with-nav"><div><div class="eyebrow"><span class="lbl-long">Budget mensile</span><span class="lbl-short">Budget</span></div><h1>${ymLabel(ym)}</h1></div><div class="head-actions">${eyeBtn()}${monthNav('budgetMonth')}</div></div>
-  <section class="kpis k5 privacy">
-    <div class="kpi"><span class="eyebrow">Entrate del mese</span><span class="v num pos">${money0(st.inc)}</span><span class="s">${totB ? (st.inc - totB >= 0 ? 'Margine dopo il budget ' + money0(st.inc - totB) : 'Il budget supera le entrate di ' + money0(totB - st.inc)) : 'Totale entrate registrate'}</span></div>
-    <div class="kpi"><span class="eyebrow">Budget totale</span><span class="v num">${money0(totB)}</span><span class="s">Budget di ${ymLabel(ym).toLowerCase()}</span></div>
-    <div class="kpi"><span class="eyebrow">Speso</span><span class="v num neg">${money0(totS)}</span><span class="s">${totB ? pct(totS / totB) + ' del budget' : 'Imposta un budget per categoria'}</span></div>
-    <div class="kpi"><span class="eyebrow">Disponibile</span><span class="v num ${totB - totS < 0 ? 'neg' : 'pos'}">${money0(totB - totS)}</span><span class="s">${isCur ? (dim - dayN) + ' giorni rimasti' : 'Mese chiuso'}</span></div>
-    <div class="kpi"><span class="eyebrow">Proiezione fine mese</span><span class="v num ${totB && projected > totB ? 'neg' : ''}">${money0(projected)}</span><span class="s">${isCur ? 'Al ritmo di spesa attuale' : 'Spesa effettiva'}</span></div>
-  </section>
+  <div class="budget-mode-row">${budgetModeSeg()}</div>
+  ${heroCard('Budget del mese', money0(totB), [['Entrate', 'in', money0(st.inc), 'pos'], ['Speso', 'out', money0(totS), 'neg'], ['Disponibile', 'sav', money0(totB - totS), totB - totS < 0 ? 'neg' : ''], [isCur ? 'Proiezione' : 'Speso mese', 'neu', money0(projected), totB && projected > totB ? 'neg' : '']])}
+  <div class="prop-actions"><button class="btn small" data-act="budget-copy">Copia da un altro mese</button><button class="btn small" data-act="budget-default">Usa come predefiniti</button></div>
   ${S.ui.scope === 'personale' ? '' : activityPanel(ym)}
-  <section class="panel"><div class="panel-h"><h2>Per categoria</h2><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="muted" style="font-size:.85rem">L'importo vale solo per ${ymLabel(ym).toLowerCase()}: scrivi e premi Invio</span><button class="btn small" data-act="budget-copy">Copia da un altro mese</button><button class="btn small" data-act="budget-default">Usa questi budget come predefiniti</button></div></div>
+  <section class="panel"><div class="panel-h"><h2>Per categoria</h2></div>
     ${cats.length ? `<div class="tbl-wrap"><table><thead><tr><th>Categoria</th><th class="r">Budget</th><th class="r">Speso</th><th class="r">Residuo</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty"><p>Crea prima le categorie di spesa nelle impostazioni.</p><a class="btn" href="#impostazioni">Vai alle impostazioni</a></div>`}
   </section>`;
 };
@@ -1772,17 +1800,17 @@ VIEWS.patrimonio = () => {
   const allocT = alloc.reduce((s, x) => s + x.v, 0) || 1;
   const hs = [...S.holdings].sort((a, b) => holdingValue(b) - holdingValue(a));
   return `
-  <div class="head"><div><div class="eyebrow">Patrimonio</div><h1>${money0(liquid + inv)}</h1></div>
-    <div class="head-actions"><button class="btn" data-act="snapshot">Registra valore di oggi</button><button class="btn" data-act="new-acc">+ Conto</button><button class="btn primary" data-act="new-hold">+ Investimento</button></div></div>
-  <section class="panel"><div class="panel-h"><h2>Andamento del patrimonio netto</h2><div class="chart-legend"><span><i class="dot" style="background:var(--bar)"></i>Patrimonio netto</span><span><i class="dot" style="background:var(--chart-in)"></i>Liquidità</span></div></div><div class="chart" data-chart="networth"></div>
-    <p class="muted" style="font-size:.8rem;margin:8px 0 0">La liquidità è ricostruita dai movimenti. Il valore degli investimenti nei mesi passati viene dalle registrazioni che salvi con “Registra valore di oggi”.</p></section>
+  <div class="head with-nav"><div><div class="eyebrow">Patrimonio</div><h1>Patrimonio</h1></div><div class="head-actions">${eyeBtn()}</div></div>
+  ${heroCard('Patrimonio netto', money0(liquid + inv), [['Liquidità', 'sav', money0(liquid), liquid < 0 ? 'neg' : ''], ['Investimenti', 'neu', money0(inv)], ['Guadagno', inv - cost >= 0 ? 'in' : 'out', (inv - cost >= 0 ? '+' : '−') + money0(Math.abs(inv - cost)), inv - cost >= 0 ? 'pos' : 'neg']])}
+  <div class="prop-actions"><button class="btn small" data-act="new-acc">+ Conto</button><button class="btn small primary" data-act="new-hold">+ Investimento</button></div>
+  <section class="panel"><div class="panel-h"><h2>Andamento del patrimonio netto</h2><div class="chart-legend"><span><i class="dot" style="background:var(--bar)"></i>Patrimonio netto</span><span><i class="dot" style="background:var(--chart-in)"></i>Liquidità</span></div></div><div class="chart" data-chart="networth"></div></section>
   <section class="panel"><div class="panel-h"><h2>Asset allocation</h2></div>
     <div class="alloc">${alloc.map(x => `<i style="flex:${x.v};background:${x.c}" title="${esc(x.k)}"></i>`).join('') || '<i style="flex:1;background:var(--surface-2)"></i>'}</div>
     <div class="legend">${alloc.map(x => `<span><i class="dot" style="background:${x.c}"></i>${esc(x.k)} <b class="num">${pct(x.v / allocT)}</b> <span class="muted num">${money0(x.v)}</span></span>`).join('')}</div></section>
   ${(() => {
     const cards = accs.filter(a => a.type === 'credito'); if (!cards.length) return '';
     const debt = cards.reduce((s, a) => s + Math.max(0, -(bal[a.id] || 0)), 0);
-    return `<section class="panel"><div class="panel-h"><div><h2>Carte di credito</h2><span class="muted" style="font-size:.82rem">Spese con la carta non ancora addebitate sul conto. Quando la banca addebita l'estratto conto, premi “Registra addebito”.</span></div><span class="pill ${debt ? 'neg' : 'pos'} num">Da pagare ${money(debt)}</span></div>
+    return `<section class="panel"><div class="panel-h"><h2>Carte di credito</h2><span class="pill ${debt ? 'neg' : 'pos'} num">Da pagare ${money(debt)}</span></div>
     ${cards.map(a => {
       const due = -(bal[a.id] || 0), from = acc(a.payFrom);
       const lastPay = sortTx(S.transactions.filter(t => (t.kind === 'giroconto') && t.toAccountId === a.id))[0];
@@ -1800,7 +1828,7 @@ VIEWS.patrimonio = () => {
     ${pacDueHTML()}
     ${hs.length ? `<div class="tbl-wrap"><table><thead><tr><th>Titolo</th><th>Classe</th><th class="r">Quantità</th><th class="r">Prezzo medio</th><th class="r">Valore</th><th class="r">P/L</th><th class="r">Peso</th></tr></thead><tbody>
       ${hs.map(h => { const v = holdingValue(h), c = holdingCost(h), pl = v - c; return `<tr class="click" data-act="edit-hold" data-id="${esc(h.id)}"><td><b>${esc(h.name)}</b>${pacOn(h) ? `<br><span class="muted" style="font-size:.78rem;white-space:nowrap">PAC ${money0(+h.pac.amount)}/mese</span>` : ''}</td><td>${esc(h.assetClass || '')}</td><td class="r num">${nf.format(+h.quantity || 0)}</td><td class="r num">${money(+h.avgCost)}</td><td class="r num"><b>${money(v)}</b></td><td class="r num ${pl >= 0 ? 'pos' : 'neg'}">${pl >= 0 ? '+' : '−'}${money(Math.abs(pl))}<br><span style="font-size:.78rem">${pct(c ? pl / c : NaN)}</span></td><td class="r num">${pct(inv ? v / inv : NaN)}</td></tr>`; }).join('')}
-    </tbody></table></div><p class="muted" style="font-size:.8rem;margin:10px 0 0">Tocca una riga per aggiornare il prezzo o impostare il PAC.</p>`
+    </tbody></table></div>`
       : `<div class="empty"><p>Registra azioni, ETF, obbligazioni o altri asset con quantità e prezzo.</p><button class="btn primary" data-act="new-hold">+ Investimento</button></div>`}
   </section>`;
 };
@@ -1812,8 +1840,11 @@ VIEWS.obiettivi = () => {
   const monthlyOut = rec.filter(r => r.active !== false && (r.kind === 'spesa' || r.kind === 'accantonamento')).reduce((s, r) => s + (+r.amount) * (FREQ_M[r.frequency] || 1), 0);
   const monthlyIn = rec.filter(r => r.active !== false && r.kind === 'entrata').reduce((s, r) => s + (+r.amount) * (FREQ_M[r.frequency] || 1), 0);
   return `
-  <div class="head"><div><div class="eyebrow">Obiettivi e ricorrenze</div><h1>Pianificazione</h1></div><div class="head-actions"><button class="btn" data-act="new-rec">+ Ricorrenza</button><button class="btn primary" data-act="new-goal">+ Obiettivo</button></div></div>
-  <section><div class="panel-h"><h2>Obiettivi di risparmio</h2></div>
+  <div class="head with-nav"><div><div class="eyebrow"><span class="lbl-long">Obiettivi e ricorrenze</span><span class="lbl-short">Obiettivi</span></div><h1>Pianificazione</h1></div><div class="head-actions">${eyeBtn()}</div></div>
+  ${(() => { const sv = goals.reduce((x, g) => x + (+g.saved || 0), 0), tg = goals.reduce((x, g) => x + (+g.target || 0), 0);
+    return heroCard('Accantonato per gli obiettivi', money0(sv), [['Obiettivi', 'sav', money0(tg)], ['Uscite fisse', 'out', money0(monthlyOut) + '/m', 'neg'], ['Entrate fisse', 'in', money0(monthlyIn) + '/m', 'pos']]); })()}
+  <div class="prop-actions"><button class="btn small" data-act="new-rec">+ Ricorrenza</button><button class="btn small primary" data-act="new-goal">+ Obiettivo</button></div>
+  <section class="panel"><div class="panel-h"><h2>Obiettivi di risparmio</h2></div>
     ${goals.length ? `<div class="goals">${goals.map(g => {
       const t = +g.target || 0, s = +g.saved || 0, r = t ? s / t : 0, rem = Math.max(0, t - s);
       let need = '';
@@ -1825,10 +1856,10 @@ VIEWS.obiettivi = () => {
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;font-size:.85rem">${need || '<span></span>'}<button class="btn small" data-act="goal-add" data-id="${esc(g.id)}">+ Versa</button></div></div>`; }).join('')}</div>`
       : `<div class="panel empty"><p>Fissa un obiettivo, ad esempio un fondo emergenze o una vacanza, e segui i progressi.</p><button class="btn primary" data-act="new-goal">+ Obiettivo</button></div>`}
   </section>
-  <section class="panel"><div class="panel-h"><h2>Spese e entrate ricorrenti</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill num">Uscite fisse ${money0(monthlyOut)}/mese</span><span class="pill pos num">Entrate fisse ${money0(monthlyIn)}/mese</span></div></div>
+  <section class="panel"><div class="panel-h"><h2>Spese e entrate ricorrenti</h2></div>
     ${rec.length ? `<div class="tbl-wrap"><table><thead><tr><th>Voce</th><th>Frequenza</th><th>Prossima</th><th class="r">Importo</th><th class="r">Al mese</th><th></th></tr></thead><tbody>
       ${rec.map(r => { const off = r.active === false, late = !off && r.nextDate && r.nextDate <= today; return `<tr class="click" data-act="edit-rec" data-id="${esc(r.id)}" style="${off ? 'opacity:.55' : ''}"><td><b>${esc(r.name)}</b><br><span class="muted" style="font-size:.8rem">${esc(cat(r.categoryId)?.name || '')}${acc(r.accountId) ? ' · ' + esc(acc(r.accountId).name) : ''}</span></td><td>${esc(FREQ[r.frequency] || '')}</td><td>${off ? '<span class="pill">In pausa</span>' : `<span class="pill ${late ? 'neg' : ''}">${dShort(r.nextDate)}</span>`}</td><td class="r num ${r.kind === 'entrata' ? 'pos' : ''}">${r.kind === 'entrata' ? '+' : '−'}${money(+r.amount)}</td><td class="r num muted">${money((+r.amount) * (FREQ_M[r.frequency] || 1))}</td><td class="r">${!off && late ? `<button class="btn small" data-act="rec-post" data-id="${esc(r.id)}">Registra</button>` : ''}</td></tr>`; }).join('')}
-    </tbody></table></div><p class="muted" style="font-size:.8rem;margin:10px 0 0">Quando una voce è scaduta, “Registra” crea il movimento e sposta la prossima data.</p>`
+    </tbody></table></div>`
       : `<div class="empty"><p>Aggiungi abbonamenti, affitto, stipendio e altre voci che si ripetono.</p><button class="btn primary" data-act="new-rec">+ Ricorrenza</button></div>`}
   </section>`;
 };
@@ -1836,7 +1867,7 @@ VIEWS.obiettivi = () => {
 VIEWS.impostazioni = () => {
   const rules = S.settings.rules || [];
   return `
-  <div class="head"><div><div class="eyebrow">Impostazioni</div><h1>Conti, categorie e dati</h1></div></div>
+  <div class="head with-nav"><div><div class="eyebrow">Impostazioni</div><h1>Conti, categorie e dati</h1></div></div>
   <div class="grid g-2">
     <section class="panel"><div class="panel-h"><h2>Conti</h2><button class="btn small" data-act="new-acc">+ Conto</button></div>
       ${S.accounts.length ? [...S.accounts].sort((a, b) => !!a.archived - !!b.archived || a.name.localeCompare(b.name)).map(a => `<div class="list-row"><div class="l"><i class="dot" style="background:${esc(accColor(a))}"></i><span>${esc(a.name)}</span>${a.archived ? '<span class="pill">Archiviato</span>' : ''}</div><button class="btn small ghost" data-act="edit-acc" data-id="${esc(a.id)}">Modifica</button></div>`).join('') : '<p class="muted">Nessun conto.</p>'}
