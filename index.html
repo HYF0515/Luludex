@@ -150,6 +150,8 @@ a.btn{color:inherit;text-decoration:none}
 .cl{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
 .cl-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .cl-h b{font-size:1.02rem;display:block}
+.cl-name{border:0;background:none;padding:0;font:inherit;font-weight:700;font-size:1.02rem;color:var(--fg);cursor:pointer;text-align:left;display:block;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.cl-name:hover,.cl-name:focus-visible{text-decoration-color:currentColor}
 .cl-h small{color:var(--muted);overflow-wrap:anywhere}
 .pk{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}
 .pk.ended{opacity:.62}
@@ -856,7 +858,8 @@ function txListFiltered() {
 const PKG_MONTHS = { pt: [3, 6, 12], coaching: [6, 12] };
 const PKG_STATUS = { attivo: { l: 'Attivo', c: 'work' }, futuro: { l: 'Non iniziato', c: '' }, completato: { l: 'Completato', c: 'pos' }, scaduto: { l: 'Scaduto', c: 'warn' } };
 const pkgLessons = (months, perWeek) => (+months || 0) * 4 * (+perWeek || 0);
-const pkgEnd = p => { if (!p.startDate) return ''; const d = new Date(p.startDate + 'T12:00:00'); d.setMonth(d.getMonth() + (+p.months || 0)); d.setDate(d.getDate() - 1); return isoOf(d); };
+const calcEnd = (start, months) => { if (!start) return ''; const d = new Date(start + 'T12:00:00'); d.setMonth(d.getMonth() + (+months || 0)); d.setDate(d.getDate() - 1); return isoOf(d); };
+const pkgEnd = p => p.endDate || calcEnd(p.startDate, p.months);
 const pkgPaid = p => S.transactions.filter(t => t.packageId === p.id && t.kind === 'entrata').reduce((s, t) => s + (+t.amount || 0), 0);
 const pkgDue = p => Math.max(0, Math.round(((+p.price || 0) - pkgPaid(p)) * 100) / 100);
 // Lezioni fatte, registrate per mese: byMonth { 'AAAA-MM': n }. "prevDone" = lezioni fatte prima di usare l'app.
@@ -894,17 +897,14 @@ const clientsSorted = () => [...S.clients].sort((a, b) => String(a.name).localeC
 const pkgNext = p => S.packages.find(x => x.id !== p.id && x.clientId === p.clientId && x.kind === p.kind && String(x.startDate) > String(p.startDate));
 function pkgCanRenew(p) {
   if (pkgNext(p)) return false;
-  const st = pkgStatus(p); if (st === 'completato' || st === 'scaduto') return true; if (st === 'futuro') return false;
-  const end = pkgEnd(p), soon = isoOf(new Date(Date.now() + 30 * 864e5));
-  return (end && end <= soon) || (p.kind === 'pt' && (+p.lessons || 0) - pkgDone(p) <= (+p.perWeek || 1) * 4);
+  if (p.kind === 'pt') return +p.lessons > 0 && pkgDone(p) >= +p.lessons;
+  return pkgStatus(p) === 'scaduto';
 }
 // da rinnovare: rinnovabile e finito da non più di 60 giorni (oltre si considera un cliente che ha smesso)
 const toRenew = p => pkgCanRenew(p) && (!pkgEnd(p) || pkgEnd(p) >= isoOf(new Date(Date.now() - 60 * 864e5)) || pkgStatus(p) === 'completato' && Object.keys(pkgByMonth(p)).sort().pop() >= ymOf(isoOf(new Date(Date.now() - 60 * 864e5))));
 function renewPreset(p) {
-  const today = todayISO(), end = pkgEnd(p), st = pkgStatus(p);
-  let start = today;
-  if (st === 'attivo' && end) { const d = new Date(end + 'T12:00:00'); d.setDate(d.getDate() + 1); start = isoOf(d); }
-  return { kind: p.kind, months: p.months, perWeek: p.perWeek, lessons: p.kind === 'pt' ? pkgLessons(p.months, p.perWeek) : 0, price: p.price, startDate: start, clientId: p.clientId };
+  const start = todayISO();
+  return { kind: p.kind, months: p.months, perWeek: p.perWeek, lessons: p.kind === 'pt' ? pkgLessons(p.months, p.perWeek) : 0, price: p.price, startDate: start, endDate: calcEnd(start, p.months), clientId: p.clientId };
 }
 function pkgHTML(p) {
   const st = PKG_STATUS[pkgStatus(p)], paid = pkgPaid(p), due = pkgDue(p), price = +p.price || 0, end = pkgEnd(p);
@@ -958,10 +958,10 @@ function clientCards() {
   if (q) list = list.filter(c => [c.name, c.phone, c.email, c.notes].join(' ').toLowerCase().includes(q));
   if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : 'Nessun cliente.'}</p></div>`;
   return list.map(c => { const ps = clientPkgs(c.id);
-    return `<article class="cl"><div class="cl-h"><div style="min-width:0"><b>${esc(c.name)}</b><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small>${(() => { const pays = clientPayments(c.id); return pays.length ? `<small class="muted" style="display:block">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'} · incassati <span class="num pos" style="font-weight:600">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</span></small>` : ''; })()}</div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}">Scheda</button></div>
+    return `<article class="cl"><div class="cl-h"><div style="min-width:0"><button type="button" class="cl-name" data-act="client-pays" data-id="${esc(c.id)}" title="Storico pagamenti">${esc(c.name)}</button><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small>${(() => { const pays = clientPayments(c.id); return pays.length ? `<small class="muted" style="display:block">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'} · incassati <span class="num pos" style="font-weight:600">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</span></small>` : ''; })()}</div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}">Scheda</button></div>
       ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
         return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi nella scheda</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
-      <div class="pk-act"><button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button><button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button></div></article>`; }).join('');
+      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button></div></article>`; }).join('');
 }
 VIEWS.clienti = () => {
   const today = todayISO(), ym = ymOf(today), soon = isoOf(new Date(Date.now() + 30 * 864e5));
@@ -976,12 +976,12 @@ VIEWS.clienti = () => {
   const f = S.ui.cFilter || 'attivi';
   return `
   <div class="head"><div><div class="eyebrow">Clienti</div><h1>Pacchetti, lezioni e visite</h1></div>
-    <div class="head-actions"><button class="btn" data-act="lessons-month" data-ym="${ym}">Lezioni del mese</button><button class="btn" data-act="new-visit">+ Visita</button><button class="btn" data-act="new-pkg">+ Pacchetto</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
+    <div class="head-actions"><button class="btn" data-act="lessons-month" data-ym="${ym}">Lezioni del mese</button><button class="btn" data-act="new-visit">+ Visita</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
   <section class="kpis">
     <div class="kpi"><span class="eyebrow">Clienti attivi</span><span class="v num">${nActiveAll}</span><span class="s">${open.length} pacchett${open.length === 1 ? 'o' : 'i'} in corso</span></div>
     <div class="kpi"><span class="eyebrow">Da incassare</span><span class="v num ${due > 0 ? 'neg' : ''}">${money0(due)}</span><span class="s">${nDue ? `${nDue} tra pacchetti e visite da saldare` : 'Tutto saldato'}</span></div>
     <div class="kpi"><span class="eyebrow">Lezioni a ${MESI[+ym.slice(5) - 1].toLowerCase()}</span><span class="v num">${lessonsM}</span><span class="s">Lezioni PT · ${visitsM} visit${visitsM === 1 ? 'a' : 'e'} nel mese</span></div>
-    <div class="kpi"><span class="eyebrow">Da rinnovare</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · finiti o in scadenza' : 'Nessun pacchetto in scadenza'}</span></div>
+    <div class="kpi"><span class="eyebrow">Da rinnovare</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · lezioni finite' : 'Nessun abbonamento da rinnovare'}</span></div>
   </section>
   ${missing.length ? `<div class="banner"><div><b>Segna le lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}.</b> <span class="muted">Mancano per ${missing.length} pacchett${missing.length === 1 ? 'o' : 'i'} PT: ${esc([...new Set(missing.map(p => byId('clients', p.clientId)?.name || '?'))].slice(0, 3).join(', '))}${missing.length > 3 ? '…' : ''}.</span></div><button class="btn small primary" data-act="lessons-month" data-ym="${prevM}">Segna lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}</button></div>` : ''}
   <div class="cl-tools">
@@ -996,7 +996,7 @@ function clientForm(c) {
   openForm({
     title: isNew ? 'Nuovo cliente' : c.name,
     intro: (() => { const pays = isNew ? [] : clientPayments(c.id); let h = '';
-      if (pays.length) h += `<div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Storico pagamenti</b><span class="muted">${pays.length} · totale <b class="num pos">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</b></span></div>${pays.map(payRow).join('')}</div>`;
+      if (pays.length) h += `<button type="button" class="btn small" data-act="client-pays" data-id="${esc(c.id)}" style="align-self:flex-start">Storico pagamenti · ${pays.length} · totale ${money0(pays.reduce((s, t) => s + +t.amount, 0))}</button>`;
       const pks = isNew ? [] : clientPkgs(c.id);
       if (pks.length) h += `<div class="vs" style="${pays.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico pacchetti</b><span class="muted">${pks.length}</span></div>${pks.map(p => `<button type="button" class="vs-row" data-act="edit-pkg" data-id="${esc(p.id)}"><span class="l"><b>${esc(pkgLabel(p))}</b><small class="muted">${p.startDate ? dShort(p.startDate) + ' → ' + dShort(pkgEnd(p)) : ''}${p.kind === 'pt' ? ` · ${pkgDone(p)}/${+p.lessons || 0} lezioni` : ''}</small></span><span>${+p.price ? (pkgDue(p) > 0 ? `<span class="pill neg num">Da saldare ${money0(pkgDue(p))}</span>` : `<span class="pill pos">Saldato</span>`) : ''} <span class="pill ${PKG_STATUS[pkgStatus(p)].c}">${PKG_STATUS[pkgStatus(p)].l}</span></span></button>`).join('')}</div>`;
       if (vs.length) h += `<div class="vs" style="${pays.length || pks.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico visite</b><span class="muted">${vs.length}</span></div>${vs.map(visitRow).join('')}</div>`;
@@ -1024,14 +1024,15 @@ function pkgForm(p, clientId, preset) {
   p = p || preset || { kind: 'pt', months: 3, perWeek: 1, startDate: todayISO(), clientId: clientId || clientsSorted()[0].id };
   const monthOpts = k => PKG_MONTHS[k].map(m => ({ v: String(m), l: m + ' mesi' }));
   openForm({
-    title: renewing ? 'Rinnova pacchetto' : isNew ? 'Nuovo pacchetto' : 'Modifica pacchetto',
-    intro: renewing ? `<p class="muted" style="margin:0;font-size:.88rem">Nuovo pacchetto per <b>${esc(byId('clients', p.clientId)?.name || '')}</b>, con gli stessi dati del precedente. Il pacchetto precedente resta nello storico con le sue lezioni e i suoi pagamenti. Cambia quello che serve.</p>` : '',
+    title: renewing ? 'Rinnova abbonamento' : isNew ? 'Nuovo pacchetto' : 'Modifica pacchetto',
+    intro: renewing ? `<p class="muted" style="margin:0;font-size:.88rem">Nuovo abbonamento per <b>${esc(byId('clients', p.clientId)?.name || '')}</b>, con gli stessi dati del precedente. Il precedente resta nello storico con le sue lezioni e i suoi pagamenti. Cambia quello che serve.</p>` : '',
     fields: [
       { id: 'clientId', label: 'Cliente', type: 'select', value: p.clientId, options: clientsSorted().map(c => ({ v: c.id, l: c.name })) },
       { id: 'kind', type: 'seg', label: 'Tipo', value: p.kind, options: [{ v: 'pt', l: 'PT' }, { v: 'coaching', l: 'Coaching' }] },
       [{ id: 'months', label: 'Durata', type: 'select', value: String(p.months), options: monthOpts(p.kind) }, { id: 'perWeek', label: 'Lezioni a settimana', type: 'select', value: String(p.perWeek || 1), options: [{ v: '1', l: '1 a settimana' }, { v: '2', l: '2 a settimana' }] }],
-      [{ id: 'lessons', label: 'Lezioni incluse', num: true, value: p.lessons ?? pkgLessons(p.months, p.perWeek), hint: 'Mesi × 4 × lezioni a settimana. Puoi cambiarlo.' }, { id: 'startDate', label: 'Data di inizio', type: 'date', value: p.startDate || todayISO(), required: true }],
-      [{ id: 'price', label: 'Prezzo del pacchetto (€)', num: true, value: p.price ?? '', placeholder: '0,00' }, { id: 'done', label: 'Lezioni fatte prima', num: true, value: +p.prevDone || '', placeholder: '0', hint: 'Fatte prima di iniziare a segnarle qui. Le altre si segnano mese per mese.' }],
+      [{ id: 'startDate', label: 'Data di inizio', type: 'date', value: p.startDate || todayISO(), required: true }, { id: 'endDate', label: 'Data di scadenza', type: 'date', value: pkgEnd(p), required: true, hint: 'Proposta in base alla durata. Puoi cambiarla.' }],
+      [{ id: 'lessons', label: 'Lezioni incluse', num: true, value: p.lessons ?? pkgLessons(p.months, p.perWeek), hint: 'Mesi × 4 × lezioni a settimana. Puoi cambiarlo.' }, { id: 'price', label: 'Prezzo del pacchetto (€)', num: true, value: p.price ?? '', placeholder: '0,00' }],
+      [{ id: 'done', label: 'Lezioni fatte prima', num: true, value: +p.prevDone || '', placeholder: '0', hint: 'Fatte prima di iniziare a segnarle qui. Le altre si segnano mese per mese.' }],
       { id: 'notes', label: 'Note', value: p.notes || '' }
     ],
     onChange(v, form, ev) {
@@ -1041,16 +1042,20 @@ function pkgForm(p, clientId, preset) {
       if (ms.dataset.kind !== v.kind) { const keep = ms.value; ms.innerHTML = monthOpts(v.kind).map(o => `<option value="${o.v}">${o.l}</option>`).join(''); ms.value = PKG_MONTHS[v.kind].includes(+keep) ? keep : String(PKG_MONTHS[v.kind][0]); ms.dataset.kind = v.kind; }
       if (nm === 'lessons') form.dataset.lessonsTouched = '1';
       if (['months', 'perWeek', 'kind'].includes(nm) && !form.dataset.lessonsTouched) form.elements.lessons.value = pkgLessons(ms.value, v.perWeek);
+      if (nm === 'endDate') form.dataset.endTouched = '1';
+      if (['months', 'kind', 'startDate'].includes(nm) && !form.dataset.endTouched) form.elements.endDate.value = calcEnd(form.elements.startDate.value, ms.value);
     },
     validate(v) {
       if (!v.startDate) return 'Indica la data di inizio.';
+      if (!v.endDate) return 'Indica la data di scadenza.';
+      if (v.endDate < v.startDate) return 'La scadenza deve essere dopo la data di inizio.';
       if (v.price && !(parseNum(v.price) >= 0)) return 'Il prezzo non è un numero valido.';
       if (v.kind === 'pt' && !(parseNum(v.lessons) > 0)) return 'Indica quante lezioni sono incluse.';
     },
     async onSubmit(v) {
       const pt = v.kind === 'pt', n = x => { const k = parseNum(x); return Number.isFinite(k) ? k : 0; };
       const byMonth = pt ? pkgByMonth(p) : {}, prevDone = pt ? Math.max(0, Math.round(n(v.done))) : 0, log = [];
-      const doc = { ...strip(p), byMonth, prevDone, clientId: v.clientId, kind: v.kind, months: +v.months, perWeek: pt ? +v.perWeek : 0, lessons: pt ? Math.round(n(v.lessons)) : 0, startDate: v.startDate, price: Math.round(n(v.price) * 100) / 100, notes: v.notes.trim(), log, createdAt: p.createdAt || Date.now() };
+      const doc = { ...strip(p), byMonth, prevDone, clientId: v.clientId, kind: v.kind, months: +v.months, perWeek: pt ? +v.perWeek : 0, lessons: pt ? Math.round(n(v.lessons)) : 0, startDate: v.startDate, endDate: v.endDate, price: Math.round(n(v.price) * 100) / 100, notes: v.notes.trim(), log, createdAt: p.createdAt || Date.now() };
       const ok = await put('packages', p.id || uid(), doc); ok && toast(isNew ? 'Pacchetto aggiunto' : 'Pacchetto aggiornato'); return ok;
     },
     deleteLabel: 'Elimina pacchetto',
@@ -1128,6 +1133,21 @@ function lessonsMonthForm(ym) {
       return true;
     }
   });
+}
+function paymentsSheet(id) {
+  const c = byId('clients', id); if (!c) return;
+  const pays = clientPayments(id), tot = pays.reduce((s, t) => s + +t.amount, 0);
+  const dues = [...S.packages.filter(p => p.clientId === id && pkgDue(p) > 0).map(p => ({ l: pkgLabel(p), sub: p.startDate ? dShort(p.startDate) + ' → ' + dShort(pkgEnd(p)) : '', due: pkgDue(p), act: 'pkg-pay', id: p.id })),
+    ...S.visits.filter(v => v.clientId === id && visitDue(v) > 0).map(v => ({ l: VISIT[v.kind]?.l || 'Visita', sub: dShort(v.date), due: visitDue(v), act: 'visit-pay', id: v.id }))];
+  const years = [...new Set(pays.map(t => t.date.slice(0, 4)))];
+  const m = $('#modal');
+  m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title"><header><h2 id="m-title">Pagamenti di ${esc(c.name)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header><div class="body">
+    <div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="kpi"><span class="eyebrow">Totale pagato</span><span class="v num pos">${money0(tot)}</span><span class="s">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'}</span></div><div class="kpi"><span class="eyebrow">Da saldare</span><span class="v num ${dues.length ? 'neg' : ''}">${money0(dues.reduce((s, d) => s + d.due, 0))}</span><span class="s">${dues.length ? dues.length + ' da saldare' : 'Tutto saldato'}</span></div></div>
+    ${dues.length ? `<div class="vs" style="border:0;padding:0"><b>Da saldare</b>${dues.map(d => `<div class="pk-row" style="padding:4px 0"><span class="l" style="display:flex;flex-direction:column"><b>${esc(d.l)}</b><small class="muted">${esc(d.sub)}</small></span><span style="display:flex;gap:8px;align-items:center"><span class="pill neg num">${money0(d.due)}</span><button type="button" class="btn small" data-act="${d.act}" data-id="${esc(d.id)}">Registra pagamento</button></span></div>`).join('')}</div>` : ''}
+    ${years.length ? years.map(y => { const ly = pays.filter(t => t.date.startsWith(y)); return `<div class="vs"><div class="pk-row"><b>${y}</b><span class="muted num">${money0(ly.reduce((s, t) => s + +t.amount, 0))}</span></div>${ly.map(payRow).join('')}</div>`; }).join('') : '<p class="muted" style="margin:0">Nessun pagamento registrato.</p>'}
+    <div class="pk-act"><button type="button" class="btn small" data-act="client-pay-new" data-id="${esc(id)}">+ Altro pagamento</button></div>
+  </div></div>`;
+  m.hidden = false;
 }
 function pkgPay(p) {
   if (!p) return;
@@ -1895,6 +1915,8 @@ document.addEventListener('click', e => {
   if (a === 'new-client') return clientForm();
   if (a === 'edit-client') return clientForm(byId('clients', id));
   if (a === 'new-pkg') return pkgForm(null, t.dataset.client);
+  if (a === 'client-pays') return paymentsSheet(id);
+  if (a === 'client-pay-new') { closeModal(); return txForm(null, { kind: 'entrata', scope: 'lavoro', clientId: id }); }
   if (a === 'renew-pkg') { const p = byId('packages', id); return p && pkgForm(null, p.clientId, renewPreset(p)); }
   if (a === 'edit-pkg') return pkgForm(byId('packages', id));
   if (a === 'lesson-add' || a === 'lesson-undo') { const p = byId('packages', id); if (!p) return; const ym = ymOf(todayISO()), n = Math.max(0, (+pkgByMonth(p)[ym] || 0) + (a === 'lesson-add' ? 1 : -1)); put('packages', p.id, pkgWithMonth(p, ym, n)); toast(`${MESI[+ym.slice(5) - 1]}: ${n} lezion${n === 1 ? 'e' : 'i'}`); return; }
