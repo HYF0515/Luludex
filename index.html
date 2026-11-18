@@ -678,7 +678,7 @@ function txRow(t) {
   let title, sub, cls, sign;
   if (t.kind === 'giroconto') { title = t.note || 'Giroconto'; sub = `${a?.name || '?'} → ${acc(t.toAccountId)?.name || '?'}`; cls = 'muted'; sign = ''; }
   else if (t.kind === 'accantonamento') { title = t.note || 'Accantonamento ' + (c?.name || ''); sub = ['Accantonato', c?.name, `${a?.name || '?'} → ${acc(t.toAccountId)?.name || '?'}`].filter(Boolean).join(' · '); cls = ''; sign = '−'; }
-  else { const fromFund = !t.paidBy && t.kind === 'spesa' && isReserve(t.accountId); title = t.note || c?.name || 'Movimento'; sub = [txScope(t) === 'lavoro' ? 'Lavoro' : '', t.paidBy ? 'Pagata da ' + t.paidBy : '', fromFund ? 'Pagato dal fondo' : '', c?.name, t.paidBy ? '' : a?.name].filter(Boolean).join(' · '); cls = t.kind === 'entrata' ? 'pos' : (fromFund || t.paidBy) ? 'muted' : ''; sign = t.kind === 'entrata' ? '+' : '−'; }
+  else { const fromFund = !t.paidBy && t.kind === 'spesa' && isReserve(t.accountId); title = t.note || c?.name || 'Movimento'; sub = [txScope(t) === 'lavoro' ? 'Lavoro' : '', t.clientId ? byId('clients', t.clientId)?.name : '', t.paidBy ? 'Pagata da ' + t.paidBy : '', fromFund ? 'Pagato dal fondo' : '', c?.name, t.paidBy ? '' : a?.name].filter(Boolean).join(' · '); cls = t.kind === 'entrata' ? 'pos' : (fromFund || t.paidBy) ? 'muted' : ''; sign = t.kind === 'entrata' ? '+' : '−'; }
   return `<div class="tx" data-act="edit-tx" data-id="${esc(t.id)}" tabindex="0" role="button">${catBadge(c, t.kind)}<div class="tx-main"><b>${esc(title)}</b><small>${esc(sub)}</small></div><div class="tx-amt num ${cls}">${sign}${txCur(t) !== BASE ? moneyC(txOrig(t), txCur(t)) : money(+t.amount)}${txCur(t) !== BASE ? `<small class="muted" style="display:block;font-weight:400;font-size:.75rem">≈ ${money(+t.amount)}</small>` : ''}</div></div>`;
 }
 function txList(list, { group = true } = {}) {
@@ -834,7 +834,7 @@ VIEWS.movimenti = () => {
       <div class="field"><label for="f-q">Cerca</label><input class="input" id="f-q" type="search" placeholder="Descrizione, categoria, importo…" value="${esc(S.ui.q)}"></div>
       <div class="field"><label for="f-acc">Conto</label><select class="input" id="f-acc"><option value="">Tutti</option>${accOpts}</select></div>
       <div class="field"><label for="f-cat">Categoria</label><select class="input" id="f-cat"><option value="">Tutte</option>${catOpts}</select></div>
-      <div class="field"><label for="f-kind">Tipo</label><select class="input" id="f-kind"><option value="">Tutti</option><option value="spesa" ${S.ui.fKind === 'spesa' ? 'selected' : ''}>Spese</option><option value="entrata" ${S.ui.fKind === 'entrata' ? 'selected' : ''}>Entrate</option><option value="giroconto" ${S.ui.fKind === 'giroconto' ? 'selected' : ''}>Giroconti</option><option value="accantonamento" ${S.ui.fKind === 'accantonamento' ? 'selected' : ''}>Accantonamenti</option></select></div>
+      <div class="field"><label for="f-kind">Tipo</label><select class="input" id="f-kind"><option value="">Tutti</option><option value="spesa" ${S.ui.fKind === 'spesa' ? 'selected' : ''}>Spese</option><option value="entrata" ${S.ui.fKind === 'entrata' ? 'selected' : ''}>Entrate</option><option value="giroconto" ${S.ui.fKind === 'giroconto' ? 'selected' : ''}>Giroconti</option>${S.transactions.some(t => t.kind === 'accantonamento') ? `<option value="accantonamento" ${S.ui.fKind === 'accantonamento' ? 'selected' : ''}>Accantonamenti</option>` : ''}</select></div>
     </div>
     <label class="check" style="margin-top:10px"><input type="checkbox" id="f-all" ${S.ui.allMonths ? 'checked' : ''}> Cerca in tutti i mesi</label>
   </section>
@@ -846,7 +846,7 @@ function txListFiltered() {
     && (!S.ui.fAcc || t.accountId === S.ui.fAcc || t.toAccountId === S.ui.fAcc)
     && (!S.ui.fCat || t.categoryId === S.ui.fCat)
     && (!S.ui.fKind || t.kind === S.ui.fKind));
-  if (q) l = l.filter(t => [t.note, cat(t.categoryId)?.name, acc(t.accountId)?.name, String(t.amount).replace('.', ',')].join(' ').toLowerCase().includes(q));
+  if (q) l = l.filter(t => [t.note, cat(t.categoryId)?.name, acc(t.accountId)?.name, t.clientId ? byId('clients', t.clientId)?.name : '', String(t.amount).replace('.', ',')].join(' ').toLowerCase().includes(q));
   l = sortTx(l);
   const inc = l.filter(t => t.kind === 'entrata').reduce((s, t) => s + +t.amount, 0), exp = l.filter(isOut).reduce((s, t) => s + +t.amount, 0);
   return `<div class="panel-h"><h2>${l.length} moviment${l.length === 1 ? 'o' : 'i'}</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill pos num">+${money(inc)}</span><span class="pill num">−${money(exp)}</span></div></div>${txList(l.slice(0, 400))}${l.length > 400 ? `<p class="muted">Mostrati i primi 400. Restringi i filtri per vedere gli altri.</p>` : ''}`;
@@ -906,6 +906,26 @@ function pkgHTML(p) {
     <div class="pk-act">${p.kind === 'pt' ? `<button class="btn small primary" data-act="lesson-add" data-id="${esc(p.id)}">+ Lezione</button>${pkgDone(p) ? `<button class="btn small ghost" data-act="lesson-undo" data-id="${esc(p.id)}" aria-label="Annulla l'ultima lezione">Annulla ultima</button>` : ''}` : ''}${due > 0 ? `<button class="btn small" data-act="pkg-pay" data-id="${esc(p.id)}">Registra pagamento</button>` : ''}<button class="btn small ghost" data-act="edit-pkg" data-id="${esc(p.id)}">Modifica</button></div>
   </div>`;
 }
+function linkOptions(clientId, t) {
+  if (!clientId) return [{ v: '', l: '—' }];
+  const own = id => (t && (t.packageId === id || t.visitId === id)) ? (t.amount || 0) : 0; // il movimento che sto modificando non conta come già pagato
+  const ps = clientPkgs(clientId).map(p => { const due = pkgDue(p) + own(p.id); return { v: 'p:' + p.id, l: `${pkgLabel(p)} · ${p.startDate ? 'dal ' + dShort(p.startDate) : ''}${+p.price ? (due > 0 ? ' · da saldare ' + money0(Math.min(due, +p.price)) : ' · saldato') : ''}` }; });
+  const vs = clientVisits(clientId).map(v => { const due = visitDue(v) + own(v.id); return { v: 'v:' + v.id, l: `${VISIT[v.kind]?.l || 'Visita'} del ${dShort(v.date)}${+v.price ? (due > 0 ? ' · da saldare ' + money0(Math.min(due, +v.price)) : ' · pagata') : ''}` }; });
+  return [{ v: '', l: 'Nessun pacchetto o visita' }, ...ps, ...vs];
+}
+function guessLink(clientId, categoryId) {
+  const ps = clientPkgs(clientId), vs = clientVisits(clientId);
+  const pick = (list, due) => (list.find(x => due(x) > 0) || list[0]);
+  if (categoryId === 'c-pt' || categoryId === 'c-coaching') { const k = categoryId === 'c-pt' ? 'pt' : 'coaching', p = pick(ps.filter(x => x.kind === k), pkgDue); return p ? 'p:' + p.id : ''; }
+  if (categoryId === 'c-prima-visita' || categoryId === 'c-visita-ctrl') { const k = categoryId === 'c-prima-visita' ? 'prima' : 'controllo', v = vs.filter(x => x.kind === k).find(x => visitDue(x) > 0); return v ? 'v:' + v.id : ''; }
+  return '';
+}
+const clientPayments = id => sortTx(S.transactions.filter(t => t.clientId === id && t.kind === 'entrata'));
+function payRow(t) {
+  const ref = t.packageId ? byId('packages', t.packageId) : null, vis = t.visitId ? byId('visits', t.visitId) : null;
+  const what = ref ? pkgLabel(ref) : vis ? `${VISIT[vis.kind]?.l || 'Visita'} del ${dShort(vis.date)}` : (cat(t.categoryId)?.name || 'Entrata');
+  return `<button type="button" class="vs-row" data-act="edit-tx" data-id="${esc(t.id)}"><span class="l"><b>${esc(what)}</b><small class="muted">${dShort(t.date)}${acc(t.accountId) ? ' · ' + esc(acc(t.accountId).name) : ''}${t.note ? ' · ' + esc(t.note) : ''}</small></span><span class="num pos" style="font-weight:600">+${money(+t.amount)}</span></button>`;
+}
 function clientCards() {
   const f = S.ui.cFilter || 'attivi', q = (S.ui.cq || '').trim().toLowerCase();
   let list = clientsSorted();
@@ -914,7 +934,7 @@ function clientCards() {
   if (q) list = list.filter(c => [c.name, c.phone, c.email, c.notes].join(' ').toLowerCase().includes(q));
   if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : 'Nessun cliente.'}</p></div>`;
   return list.map(c => { const ps = clientPkgs(c.id);
-    return `<article class="cl"><div class="cl-h"><div style="min-width:0"><b>${esc(c.name)}</b><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small></div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}">Scheda</button></div>
+    return `<article class="cl"><div class="cl-h"><div style="min-width:0"><b>${esc(c.name)}</b><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small>${(() => { const pays = clientPayments(c.id); return pays.length ? `<small class="muted" style="display:block">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'} · incassati <span class="num pos" style="font-weight:600">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</span></small>` : ''; })()}</div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}">Scheda</button></div>
       ${ps.map(pkgHTML).join('')}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
       <div class="pk-act"><button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button><button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button></div></article>`; }).join('');
 }
@@ -948,7 +968,10 @@ function clientForm(c) {
   const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id), vs = isNew ? [] : clientVisits(c.id);
   openForm({
     title: isNew ? 'Nuovo cliente' : c.name,
-    intro: vs.length ? `<div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Storico visite</b><span class="muted">${vs.length} · pagati ${money0(vs.reduce((s, v) => s + visitPaid(v), 0))}</span></div>${vs.map(visitRow).join('')}</div><div class="form-h">Dati del cliente</div>` : '',
+    intro: (() => { const pays = isNew ? [] : clientPayments(c.id); let h = '';
+      if (pays.length) h += `<div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Storico pagamenti</b><span class="muted">${pays.length} · totale <b class="num pos">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</b></span></div>${pays.map(payRow).join('')}</div>`;
+      if (vs.length) h += `<div class="vs" style="${pays.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico visite</b><span class="muted">${vs.length}</span></div>${vs.map(visitRow).join('')}</div>`;
+      return h ? h + '<div class="form-h">Dati del cliente</div>' : ''; })(),
     fields: [
       { id: 'name', label: 'Nome e cognome', value: c.name || '', required: true },
       [{ id: 'phone', label: 'Telefono', type: 'tel', value: c.phone || '' }, { id: 'email', label: 'Email', type: 'email', value: c.email || '' }],
@@ -1354,13 +1377,15 @@ function txForm(t, preset) {
   openForm({
     title: isNew ? 'Nuovo movimento' : 'Modifica movimento',
     fields: [
-      { id: 'kind', type: 'seg', label: 'Tipo', value: t.kind, options: [{ v: 'spesa', l: 'Spesa' }, { v: 'entrata', l: 'Entrata' }, { v: 'giroconto', l: 'Giroconto' }, { v: 'accantonamento', l: 'Accantona' }] },
+      { id: 'kind', type: 'seg', label: 'Tipo', value: t.kind, options: [{ v: 'spesa', l: 'Spesa' }, { v: 'entrata', l: 'Entrata' }, { v: 'giroconto', l: 'Giroconto' }, ...(t.kind === 'accantonamento' ? [{ v: 'accantonamento', l: 'Accantona' }] : [])] },
       [{ id: 'amount', label: 'Importo', num: true, value: t.amount != null ? txOrig(t) : '', placeholder: '0,00', required: true }, { id: 'currency', label: 'Valuta', type: 'select', value: t.currency || accCur(t.accountId), options: curOptions() }],
       [{ id: 'date', label: 'Data', type: 'date', value: t.date, required: true }, { id: 'rate', label: 'Cambio', num: true, value: t.rate && txCur(t) !== BASE ? +(+t.rate).toFixed(6) : '', hint: '' }],
       { id: 'note', label: 'Descrizione', value: t.note || '', placeholder: 'Es. Spesa Esselunga' },
       [{ id: 'accountId', label: 'Conto', type: 'select', value: t.accountId, options: accs }, { id: 'toAccountId', label: 'Verso il conto', type: 'select', value: t.toAccountId || (accs.find(a => a.v !== t.accountId) || accs[0]).v, options: accs }],
       { id: 'categoryId', label: 'Categoria', type: 'select', value: t.categoryId || '', options: [{ v: '', l: '—' }] },
       { id: 'scope', type: 'seg', label: 'Ambito', value: t.scope || catScope(cat(t.categoryId)), options: [{ v: 'lavoro', l: 'Lavoro' }, { v: 'personale', l: 'Personale' }] },
+      [{ id: 'clientId', label: 'Cliente', type: 'select', value: t.clientId || '', options: [{ v: '', l: '— nessun cliente —' }, ...clientsSorted().map(c => ({ v: c.id, l: c.name }))] },
+       { id: 'link', label: 'Riferito a', type: 'select', value: t.packageId ? 'p:' + t.packageId : t.visitId ? 'v:' + t.visitId : '', options: [{ v: '', l: '—' }] }],
       { id: 'byOther', label: 'Pagata da un\'altra persona: la registro per tenerne traccia, ma non conta nelle mie spese né nei miei conti', type: 'checkbox', value: !!t.paidBy },
       { id: 'paidBy', label: 'Chi ha pagato', value: t.paidBy || '', placeholder: 'Es. Marco, i miei genitori, l\'inquilino' }
     ],
@@ -1400,6 +1425,17 @@ function txForm(t, preset) {
       showField(form, 'scope', !g);
       if (ev && ev.target && ev.target.name === 'scope') form.dataset.scopeTouched = '1';
       if (!form.dataset.scopeTouched && !t.scope && (!ev || ['categoryId', 'kind'].includes(ev.target?.name))) setSeg(form, 'scope', catScope(cat(sel.value)));
+      // entrate di lavoro: cliente e pacchetto/visita a cui si riferiscono
+      const workIn = v.kind === 'entrata' && form.elements.scope.value === 'lavoro', cSel = form.elements.clientId, lSel = form.elements.link, nm = ev?.target?.name;
+      showField(form, 'clientId', workIn && S.clients.length > 0); showField(form, 'link', workIn && !!cSel.value);
+      if (nm === 'link') form.dataset.linkTouched = '1';
+      if (lSel.dataset.client !== cSel.value) {
+        const keep = lSel.dataset.client === undefined ? (t.packageId ? 'p:' + t.packageId : t.visitId ? 'v:' + t.visitId : '') : '';
+        lSel.innerHTML = linkOptions(cSel.value, t).map(o => `<option value="${esc(o.v)}">${esc(o.l)}</option>`).join('');
+        lSel.value = [...lSel.options].some(o => o.value === keep) ? keep : '';
+        lSel.dataset.client = cSel.value;
+      }
+      if (workIn && cSel.value && !form.dataset.linkTouched && !(t.packageId || t.visitId) && (!ev || ['clientId', 'categoryId', 'kind', 'scope'].includes(nm))) lSel.value = guessLink(cSel.value, sel.value);
     },
     validate(v) {
       const a = parseNum(v.amount);
@@ -1417,8 +1453,10 @@ function txForm(t, preset) {
       if (v.kind === 'spesa' && v.byOther) doc.paidBy = String(v.paidBy).trim();
       if (v.currency !== BASE) { doc.currency = v.currency; doc.origAmount = orig; doc.rate = rate; }
       if (v.kind !== 'giroconto') doc.scope = v.scope || 'personale';
-      if (t.packageId) { doc.packageId = t.packageId; doc.clientId = t.clientId || ''; }
-      if (t.visitId) { doc.visitId = t.visitId; doc.clientId = t.clientId || ''; }
+      if (v.kind === 'entrata' && v.scope === 'lavoro' && v.clientId) {
+        doc.clientId = v.clientId;
+        if (String(v.link).startsWith('p:')) doc.packageId = v.link.slice(2); else if (String(v.link).startsWith('v:')) doc.visitId = v.link.slice(2);
+      }
       if (t.importKey) doc.importKey = t.importKey;
       if (t.demo) doc.demo = true;
       const ok = await put('transactions', t.id || uid(), doc);
@@ -1520,7 +1558,7 @@ function recForm(r) {
   openForm({
     title: isNew ? 'Nuova ricorrenza' : 'Modifica ricorrenza',
     fields: [
-      { id: 'kind', type: 'seg', label: 'Tipo', value: r.kind, options: [{ v: 'spesa', l: 'Spesa' }, { v: 'entrata', l: 'Entrata' }, { v: 'accantonamento', l: 'Accantona' }] },
+      { id: 'kind', type: 'seg', label: 'Tipo', value: r.kind, options: [{ v: 'spesa', l: 'Spesa' }, { v: 'entrata', l: 'Entrata' }, ...(r.kind === 'accantonamento' ? [{ v: 'accantonamento', l: 'Accantona' }] : [])] },
       { id: 'name', label: 'Nome', value: r.name || '', placeholder: 'Es. Netflix, Affitto, Stipendio', required: true },
       [{ id: 'amount', label: 'Importo (€)', num: true, value: r.amount ?? '', required: true }, { id: 'frequency', label: 'Frequenza', type: 'select', value: r.frequency, options: Object.entries(FREQ).map(([v, l]) => ({ v, l })) }],
       [{ id: 'nextDate', label: 'Prossima data', type: 'date', value: r.nextDate, required: true }, { id: 'accountId', label: 'Conto', type: 'select', value: r.accountId, options: accs.length ? accs : [{ v: '', l: '—' }] }],
@@ -1580,7 +1618,7 @@ async function exportXLSX() {
     'Importo (€)': r2((t.kind === 'spesa' || t.kind === 'accantonamento') ? -t.amount : +t.amount),
     'Valuta': txCur(t), 'Importo originale': r2(txOrig(t)), 'Cambio (€ per unità)': t.rate && txCur(t) !== BASE ? +(+t.rate).toFixed(6) : 1,
     'Conto': t.paidBy ? '' : (acc(t.accountId)?.name || ''), 'Verso conto / fondo': acc(t.toAccountId)?.name || '',
-    'Pagata da': t.paidBy || '', 'Ambito': t.kind === 'giroconto' ? '' : SCOPES[txScope(t)]
+    'Pagata da': t.paidBy || '', 'Ambito': t.kind === 'giroconto' ? '' : SCOPES[txScope(t)], 'Cliente': t.clientId ? (byId('clients', t.clientId)?.name || '') : ''
   }));
   const balN = balancesNative(), bal = balances();
   const conti = S.accounts.map(a => ({ 'Nome': a.name, 'Tipo': ACC_TYPES[a.type] || a.type, 'Valuta': a.currency || BASE, 'Saldo iniziale': r2(a.openingBalance), 'Saldo attuale': r2(balN[a.id]), 'Saldo in €': r2(bal[a.id]), 'Fondo di accantonamento': a.reserve ? 'Sì' : 'No', 'Archiviato': a.archived ? 'Sì' : 'No' }));
