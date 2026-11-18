@@ -487,6 +487,13 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
   .vs-row{padding-block:10px}
   .nav a{min-height:48px}
 }
+/* Telefono: il menù a capsula scorre a destra e a sinistra; la voce attiva viene portata al centro */
+@media (max-width:760px){
+  .nav{overflow-x:auto;overflow-y:hidden;justify-content:flex-start!important;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%);padding-inline:6px}
+  .nav::-webkit-scrollbar{display:none}
+  .nav a{flex:0 0 auto!important;width:58px;scroll-snap-align:center}
+}
 </style>
 
 <div class="app">
@@ -509,7 +516,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '14'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '15'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -885,9 +892,17 @@ const routeLabel = k => ROUTES[k];
 const navIcon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>`;
 function renderNav() {
   const r = route();
+  const navEl = $('#nav'), keepX = navEl.scrollLeft;
   $('#nav').innerHTML = Object.keys(ROUTES).map(k =>
     { const n = k === 'clienti' ? nearEndPkgs().length : 0; return `<a href="#${k}" class="${MORE_ROUTES.includes(k) ? 'more' : ''}" ${k === r ? 'aria-current="page"' : ''} aria-label="${esc(routeLabel(k))}${n ? ` (${n} abbonament${n === 1 ? 'o' : 'i'} quasi al termine)` : ''}" title="${esc(routeLabel(k))}">${navIcon(k)}<span>${esc(routeLabel(k))}</span>${n ? `<b class="nav-badge" aria-hidden="true">${n}</b>` : ''}</a>`; }).join('')
 ;
+  // sul telefono la barra scorre: tengo la posizione e porto al centro la voce attiva
+  navEl.scrollLeft = keepX;
+  const cur = navEl.querySelector('a[aria-current="page"]');
+  if (cur && navEl.scrollWidth > navEl.clientWidth + 2) {
+    const target = cur.offsetLeft - (navEl.clientWidth - cur.offsetWidth) / 2;
+    if (Math.abs(navEl.scrollLeft - target) > 4) navEl.scrollTo({ left: target, behavior: keepX ? 'smooth' : 'auto' });
+  }
 }
 
 /* ---------- icone delle categorie ---------- */
@@ -1322,7 +1337,7 @@ function pkgHTML(p) {
     <small class="muted">${p.startDate ? `Dal ${dShort(p.startDate)} al ${dShort(end)}` : 'Data di inizio non indicata'}</small>
     ${prog}
     <div class="pk-row"><span>${pay}</span>${price ? `<span class="muted num">Pagati ${money0(paid)} su ${money0(price)}</span>` : ''}</div>
-    <div class="pk-act">${p.kind === 'pt' ? `<button class="btn small" data-act="lessons-month" data-ym="${ymOf(todayISO())}">Lezioni del mese</button><button class="btn small" data-act="lesson-add" data-id="${esc(p.id)}" aria-label="Aggiungi una lezione a questo mese">+1</button>${pkgByMonth(p)[ymOf(todayISO())] ? `<button class="btn small ghost" data-act="lesson-undo" data-id="${esc(p.id)}" aria-label="Togli una lezione da questo mese">−1</button>` : ''}` : ''}${due > 0 ? `<button class="btn small" data-act="pkg-pay" data-id="${esc(p.id)}">Registra pagamento</button>` : ''}${pkgCanRenew(p) ? `<button class="btn small primary" data-act="renew-pkg" data-id="${esc(p.id)}">Rinnova</button>` : ''}<button class="btn small ghost" data-act="edit-pkg" data-id="${esc(p.id)}">Modifica</button></div>
+    <div class="pk-act">${p.kind === 'pt' ? `<button class="btn small" data-act="lesson-add" data-id="${esc(p.id)}" aria-label="Aggiungi una lezione a questo mese">+1</button>${pkgByMonth(p)[ymOf(todayISO())] ? `<button class="btn small ghost" data-act="lesson-undo" data-id="${esc(p.id)}" aria-label="Togli una lezione da questo mese">−1</button>` : ''}` : ''}${due > 0 ? `<button class="btn small" data-act="pkg-pay" data-id="${esc(p.id)}">Registra pagamento</button>` : ''}${pkgCanRenew(p) ? `<button class="btn small primary" data-act="renew-pkg" data-id="${esc(p.id)}">Rinnova</button>` : ''}<button class="btn small ghost" data-act="edit-pkg" data-id="${esc(p.id)}">Modifica</button></div>
   </div>`;
 }
 function linkOptions(clientId, t) {
@@ -1497,12 +1512,11 @@ VIEWS.clienti = () => {
   const visitsM = S.visits.filter(v => ymOf(v.date) === ym).length;
   const nActiveAll = S.clients.filter(c => clientActive(c.id)).length;
   const lessonsM = S.packages.reduce((s, p) => s + (+pkgByMonth(p)[ym] || 0), 0);
-  const prevM = addMonths(ym, -1), missing = ptInMonth(prevM).filter(p => pkgByMonth(p)[prevM] == null && p.startDate <= monthBounds(prevM)[1]);
   const expiring = S.packages.filter(toRenew);
   const f = S.ui.cFilter || 'attivi';
   return `
   <div class="head title-only"><div><div class="eyebrow">Clienti</div></div>
-    <div class="head-actions"><button class="btn" data-act="lessons-month" data-ym="${ym}">Lezioni del mese</button><button class="btn" data-act="new-visit">+ Visita</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
+    <div class="head-actions"><button class="btn" data-act="new-visit">+ Visita</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
   <section class="kpis">
     <div class="kpi"><span class="eyebrow">Clienti attivi</span><span class="v num">${nActiveAll}</span><span class="s">${open.length} pacchett${open.length === 1 ? 'o' : 'i'} in corso</span></div>
     <div class="kpi"><span class="eyebrow">Da incassare</span><span class="v num ${due > 0 ? 'neg' : ''}">${money0(due)}</span><span class="s">${nDue ? `${nDue} tra pacchetti e visite da saldare` : 'Tutto saldato'}</span></div>
@@ -1511,7 +1525,6 @@ VIEWS.clienti = () => {
   </section>
   ${(() => { const ne = nearEndPkgs(); if (!ne.length) return ''; return `<div class="banner"><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><b>${ne.length === 1 ? '1 abbonamento quasi al termine' : ne.length + ' abbonamenti quasi al termine'}</b>
       ${ne.slice(0, 5).map(p => `<span><button type="button" class="cl-name" style="display:inline;font-size:.92rem" data-act="client-pays" data-id="${esc(p.clientId)}">${esc(byId('clients', p.clientId)?.name || '?')}</button> <span class="muted">· ${esc(pkgLabel(p))} · ${esc(pkgNearEnd(p))}</span></span>`).join('')}${ne.length > 5 ? `<span class="muted">e altri ${ne.length - 5}</span>` : ''}</div></div>`; })()}
-  ${missing.length ? `<div class="banner"><div><b>Segna le lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}.</b> <span class="muted">Mancano per ${missing.length} pacchett${missing.length === 1 ? 'o' : 'i'} PT: ${esc([...new Set(missing.map(p => byId('clients', p.clientId)?.name || '?'))].slice(0, 3).join(', '))}${missing.length > 3 ? '…' : ''}.</span></div><button class="btn small primary" data-act="lessons-month" data-ym="${prevM}">Segna lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}</button></div>` : ''}
   <div class="cl-tools">
     <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button type="button" class="btn small ghost" data-act="cl-all" data-v="open">Apri tutti</button><button type="button" class="btn small ghost" data-act="cl-all" data-v="close">Chiudi tutti</button></div>
@@ -1645,32 +1658,6 @@ function visitPay(v) {
   if (!v) return;
   const catId = VISIT[v.kind].cat;
   txForm(null, { kind: 'entrata', categoryId: cat(catId) ? catId : '', amount: visitDue(v) || '', date: v.date, note: `${VISIT[v.kind].l} · ${byId('clients', v.clientId)?.name || ''}`, scope: 'lavoro', visitId: v.id, clientId: v.clientId });
-}
-function lessonsMonthForm(ym) {
-  ym = ym || ymOf(todayISO());
-  const ps = ptInMonth(ym).sort((a, b) => String(byId('clients', a.clientId)?.name).localeCompare(String(byId('clients', b.clientId)?.name), 'it'));
-  const cur = ymOf(todayISO());
-  openForm({
-    title: 'Lezioni di ' + ymLabel(ym).toLowerCase(),
-    intro: `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="month-nav"><button type="button" class="icon-btn" data-act="lessons-month" data-ym="${addMonths(ym, -1)}" aria-label="Mese precedente">‹</button><span>${ymLabel(ym)}</span><button type="button" class="icon-btn" data-act="lessons-month" data-ym="${addMonths(ym, 1)}" aria-label="Mese successivo" ${ym >= cur ? 'disabled' : ''}>›</button></div></div>
-      <p class="muted" style="margin:0;font-size:.88rem">${ps.length ? 'Scrivi quante lezioni ha fatto ogni cliente in questo mese. Lascia vuoto se non lo sai ancora.' : 'Nessun pacchetto PT attivo in questo mese.'}</p>`,
-    fields: ps.map(p => { const c = byId('clients', p.clientId), done = pkgDone(p), here = pkgByMonth(p)[ym];
-      return { id: 'm_' + p.id, label: `${c?.name || '?'} · ${p.months} mesi, ${p.perWeek} a settimana`, num: true, value: here ?? '', placeholder: `previste ${(+p.perWeek || 0) * 4}`, hint: `Finora ${done} di ${+p.lessons || 0} · rimaste ${Math.max(0, (+p.lessons || 0) - done)}` }; }),
-    validate(v) { for (const p of ps) { const x = v['m_' + p.id]; if (x !== '' && !(parseNum(x) >= 0)) return 'Inserisci numeri validi (0 o più).'; } },
-    async onSubmit(v) {
-      let n = 0;
-      for (const p of ps) {
-        const raw = v['m_' + p.id], old = pkgByMonth(p)[ym];
-        const val = raw === '' ? null : Math.round(parseNum(raw));
-        if (val === (old ?? null)) continue;
-        const doc = pkgWithMonth(p, ym, val || 0);
-        if (val === 0) doc.byMonth[ym] = 0; // 0 esplicito: il mese risulta segnato
-        await put('packages', p.id, doc); n++;
-      }
-      toast(n ? `Lezioni di ${ymLabel(ym).toLowerCase()} salvate` : 'Nessuna modifica');
-      return true;
-    }
-  });
 }
 function paymentsSheet(id) {
   const c = byId('clients', id); if (!c) return;
@@ -2867,7 +2854,6 @@ document.addEventListener('click', e => {
   if (a === 'renew-pkg') { const p = byId('packages', id); return p && pkgForm(null, p.clientId, renewPreset(p)); }
   if (a === 'edit-pkg') return pkgForm(byId('packages', id));
   if (a === 'lesson-add' || a === 'lesson-undo') { const p = byId('packages', id); if (!p) return; const ym = ymOf(todayISO()), n = Math.max(0, (+pkgByMonth(p)[ym] || 0) + (a === 'lesson-add' ? 1 : -1)); put('packages', p.id, pkgWithMonth(p, ym, n)); toast(`${MESI[+ym.slice(5) - 1]}: ${n} lezion${n === 1 ? 'e' : 'i'}`); return; }
-  if (a === 'lessons-month') return lessonsMonthForm(t.dataset.ym);
   if (a === 'pkg-pay') return pkgPay(byId('packages', id));
   if (a === 'new-visit') return visitForm(null, t.dataset.client);
   if (a === 'edit-visit') return visitForm(byId('visits', id));
