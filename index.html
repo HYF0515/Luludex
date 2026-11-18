@@ -170,8 +170,11 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .bar i{display:block;height:100%;border-radius:99px;background:var(--bar-ok)}
 .bar.over i{background:var(--bar-over)} .bar.near i{background:var(--bar-near)}
 .bar.done i{background:var(--pos)}
-.scope-bar{display:flex;justify-content:flex-end;margin-bottom:-6px}
-.scope-bar .seg{min-width:min(100%,320px)}
+.scope-bar{display:flex;justify-content:flex-start}
+.head.title-only{align-items:center}
+.head.title-only .eyebrow{font-size:1.05rem;color:var(--fg);letter-spacing:.06em;font-weight:700}
+.scope-bar .seg{min-width:min(100%,360px)}
+@media (max-width:760px){ .scope-bar .seg{width:100%} }
 .pill.work{background:var(--accent-soft);color:var(--accent)}
 .cl-list{display:flex;flex-direction:column;gap:10px}
 .cl-sum{display:flex;align-items:center;gap:10px;cursor:pointer;margin:-16px;padding:14px 16px;border-radius:var(--r);-webkit-tap-highlight-color:transparent}
@@ -479,7 +482,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '9'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '10'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -925,7 +928,8 @@ function render() {
   }
   const r = route();
   const sx = window.scrollY;
-  v.innerHTML = `<div class="banner" id="offline-banner" ${netDown && pendingWrites ? '' : 'hidden'}><div><b>Sei offline.</b> <span class="muted">Le modifiche sono salvate sul telefono e verranno inviate appena torna la connessione.</span></div></div>` + (isDemo() ? demoBanner() : '') + (SCOPED_VIEWS.includes(r) ? scopeBar() : '') + VIEWS[r]();
+  v.innerHTML = `<div class="banner" id="offline-banner" ${netDown && pendingWrites ? '' : 'hidden'}><div><b>Sei offline.</b> <span class="muted">Le modifiche sono salvate sul telefono e verranno inviate appena torna la connessione.</span></div></div>` + (isDemo() ? demoBanner() : '') + VIEWS[r]();
+  if (SCOPED_VIEWS.includes(r)) { const h = v.querySelector('.head'); if (h) h.insertAdjacentHTML('afterend', scopeBar()); else v.insertAdjacentHTML('afterbegin', scopeBar()); }
   addFolds(r);
   drawCharts();
   window.scrollTo(0, sx);
@@ -1354,7 +1358,7 @@ VIEWS.clienti = () => {
   const expiring = S.packages.filter(toRenew);
   const f = S.ui.cFilter || 'attivi';
   return `
-  <div class="head"><div><div class="eyebrow">Clienti</div><h1>Pacchetti, lezioni e visite</h1></div>
+  <div class="head title-only"><div><div class="eyebrow">Clienti</div></div>
     <div class="head-actions"><button class="btn" data-act="lessons-month" data-ym="${ym}">Lezioni del mese</button><button class="btn" data-act="new-visit">+ Visita</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
   <section class="kpis">
     <div class="kpi"><span class="eyebrow">Clienti attivi</span><span class="v num">${nActiveAll}</span><span class="s">${open.length} pacchett${open.length === 1 ? 'o' : 'i'} in corso</span></div>
