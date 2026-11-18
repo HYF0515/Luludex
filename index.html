@@ -339,7 +339,7 @@ function nextDate(iso, f) {
 }
 
 /* ---------- stato ---------- */
-const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages', 'visits', 'invoices'];
+const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages', 'visits', 'invoices', 'diets'];
 const S = { fs: null, user: null, synced: false, status: 'loading', settings: {},
   ui: { budgetMode: 'mese', budgetYear: todayISO().slice(0, 4), year: todayISO().slice(0, 4), month: ymOf(todayISO()), q: '', fAcc: '', fCat: '', fKind: '', budgetMonth: ymOf(todayISO()), scope: (() => { try { return localStorage.getItem('luludex.scope') || 'tutto'; } catch (e) { return 'tutto'; } })(), cFilter: 'attivi', cq: '' } };
 COLS.forEach(c => S[c] = []);
@@ -896,7 +896,7 @@ const clientDue = id => S.packages.filter(p => p.clientId === id).reduce((s, p) 
 const clientActive = id => { const lim = isoOf(new Date(Date.now() - 92 * 864e5)), nc = nextCheck(id); const ps = clientPkgs(id), vs = clientVisits(id); if (!ps.length && !vs.length) return true; return ps.some(pkgOpen) || ps.some(toRenew) || vs.some(v => v.date >= lim) || (nc && nc >= todayISO()); };
 function visitRow(v) {
   const due = visitDue(v), price = +v.price || 0;
-  return `<button type="button" class="vs-row" data-act="edit-visit" data-id="${esc(v.id)}"><span class="l"><b>${esc(VISIT[v.kind]?.l || 'Visita')}</b><small class="muted">${dShort(v.date)}${v.weight ? ' · ' + String(v.weight).replace('.', ',') + ' kg' : ''}${v.notes ? ' · ' + esc(v.notes) : ''}</small></span>
+  return `<button type="button" class="vs-row" data-act="edit-visit" data-id="${esc(v.id)}"><span class="l"><b>${esc(VISIT[v.kind]?.l || 'Visita')}</b><small class="muted">${dShort(v.date)}${v.weight ? ' · ' + String(v.weight).replace('.', ',') + ' kg' : ''}${S.diets.some(d => d.visitId === v.id) ? ' · dieta' : ''}${v.notes ? ' · ' + esc(v.notes) : ''}</small></span>
     <span>${price ? (due > 0 ? `<span class="pill neg num">Da saldare ${money0(due)}</span>` : `<span class="pill pos num">${money0(price)} · pagata</span>`) : '<span class="pill">Senza prezzo</span>'}</span></button>`;
 }
 function visitsHTML(c) {
@@ -1007,11 +1007,11 @@ VIEWS.clienti = () => {
 };
 function clientForm(c) {
   const isNew = !c; c = c || {};
-  const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id), vs = isNew ? [] : clientVisits(c.id), invs = isNew ? [] : S.invoices.filter(i => i.clientId === c.id);
+  const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id), vs = isNew ? [] : clientVisits(c.id), invs = isNew ? [] : S.invoices.filter(i => i.clientId === c.id), dts = isNew ? [] : S.diets.filter(x => x.clientId === c.id);
   openForm({
     title: isNew ? 'Nuovo cliente' : c.name,
     intro: (() => { const pays = isNew ? [] : clientPayments(c.id); let h = '';
-      if (!isNew) h += `<button type="button" class="btn small" data-act="client-pays" data-id="${esc(c.id)}" style="align-self:flex-start">Scheda completa: pagamenti${invs.length ? ' e ' + invs.length + ' fattur' + (invs.length === 1 ? 'a' : 'e') : ' e fatture'}</button>`;
+      if (!isNew) h += `<button type="button" class="btn small" data-act="client-pays" data-id="${esc(c.id)}" style="align-self:flex-start">Scheda completa: pagamenti, fatture e diete</button>`;
       const pks = isNew ? [] : clientPkgs(c.id);
       if (pks.length) h += `<div class="vs" style="${pays.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico pacchetti</b><span class="muted">${pks.length}</span></div>${pks.map(p => `<button type="button" class="vs-row" data-act="edit-pkg" data-id="${esc(p.id)}"><span class="l"><b>${esc(pkgLabel(p))}</b><small class="muted">${p.startDate ? dShort(p.startDate) + ' → ' + dShort(pkgEnd(p)) : ''}${p.kind === 'pt' ? ` · ${pkgDone(p)}/${+p.lessons || 0} lezioni` : ''}</small></span><span>${+p.price ? (pkgDue(p) > 0 ? `<span class="pill neg num">Da saldare ${money0(pkgDue(p))}</span>` : `<span class="pill pos">Saldato</span>`) : ''} <span class="pill ${PKG_STATUS[pkgStatus(p)].c}">${PKG_STATUS[pkgStatus(p)].l}</span></span></button>`).join('')}</div>`;
       if (vs.length) h += `<div class="vs" style="${pays.length || pks.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico visite</b><span class="muted">${vs.length}</span></div>${vs.map(visitRow).join('')}</div>`;
@@ -1035,8 +1035,8 @@ function clientForm(c) {
       if (ok) { toast(isNew ? 'Cliente aggiunto' : 'Cliente aggiornato'); if (isNew) setTimeout(() => pkgForm(null, id), 50); }
       return ok;
     },
-    deleteLabel: ps.length || vs.length || invs.length ? `Elimina cliente${ps.length ? ', pacchetti' : ''}${vs.length ? ', visite' : ''}${invs.length ? ', fatture' : ''}` : 'Elimina cliente',
-    onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); vs.forEach(v => del('visits', v.id)); invs.forEach(i => { del('invoices', i.id); if (i.fileKey) FILES.del(i.fileKey).catch(() => {}); }); const ok = await del('clients', c.id); ok && toast(ps.length || vs.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
+    deleteLabel: ps.length || vs.length || invs.length || dts.length ? `Elimina cliente${ps.length ? ', pacchetti' : ''}${vs.length ? ', visite' : ''}${invs.length ? ', fatture' : ''}${dts.length ? ', diete' : ''}` : 'Elimina cliente',
+    onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); vs.forEach(v => del('visits', v.id)); invs.forEach(i => { del('invoices', i.id); if (i.fileKey) FILES.del(i.fileKey).catch(() => {}); }); dts.forEach(x => { del('diets', x.id); if (x.fileKey) FILES.del(x.fileKey).catch(() => {}); }); const ok = await del('clients', c.id); ok && toast(ps.length || vs.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
   });
 }
 function pkgForm(p, clientId, preset) {
@@ -1175,6 +1175,9 @@ function paymentsSheet(id) {
     <div class="vs"><div class="pk-row"><b>Fatture emesse</b><span class="muted">${invs.length ? `${invs.length} · ${money0(invs.reduce((s, i) => s + (+i.amount || 0), 0))}` : ''}</span></div>
       ${invs.length ? invs.map(invoiceRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessuna fattura. Carica il PDF delle fatture che emetti per ritrovarle qui.</p>'}
       <div class="pk-act"><button type="button" class="btn small primary" data-act="new-invoice" data-client="${esc(id)}">+ Carica fattura</button></div></div>
+    ${(() => { const ds = clientDiets(id); return `<div class="vs"><div class="pk-row"><b>Diete</b><span class="muted">${ds.length ? ds.length + (ds[0].date ? ' · ultima ' + dShort(ds[0].date) : '') : ''}</span></div>
+      ${ds.length ? ds.map(dietRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessuna dieta. Carica i piani alimentari che prepari per questo cliente.</p>'}
+      <div class="pk-act"><button type="button" class="btn small primary" data-act="new-diet" data-client="${esc(id)}">+ Carica dieta</button></div></div>`; })()}
   </div></div>`;
   m.hidden = false;
 }
@@ -1231,6 +1234,60 @@ function invoiceForm(inv, clientId) {
     },
     deleteLabel: 'Elimina fattura',
     onDelete: isNew ? null : async () => { const ok = await del('invoices', inv.id); if (ok) { if (inv.fileKey) FILES.del(inv.fileKey).catch(() => {}); toast('Fattura eliminata'); setTimeout(() => paymentsSheet(inv.clientId), 30); } return ok; }
+  });
+}
+const clientDiets = id => S.diets.filter(d => d.clientId === id).sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.createdAt || 0) - (a.createdAt || 0));
+function dietRow(d) {
+  const v = d.visitId ? byId('visits', d.visitId) : null;
+  return `<div class="pk-row" style="padding:6px 0;border-top:1px solid var(--line)"><span style="display:flex;flex-direction:column;min-width:0"><b>${esc(d.title || 'Dieta')}</b><small class="muted" style="overflow-wrap:anywhere">${dShort(d.date)}${v ? ' · ' + esc(VISIT[v.kind]?.l || 'Visita') + ' del ' + dShort(v.date) : ''}${d.fileName ? ' · ' + esc(d.fileName) + (d.size ? ' (' + fileSize(d.size) + ')' : '') : ''}${d.notes ? ' · ' + esc(d.notes) : ''}</small></span>
+    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${d.fileKey ? `<button type="button" class="btn small" data-act="diet-dl" data-id="${esc(d.id)}">Scarica</button>` : ''}<button type="button" class="btn small ghost" data-act="edit-diet" data-id="${esc(d.id)}">Modifica</button></span></div>`;
+}
+async function dietDownload(d) {
+  if (!d?.fileKey) return;
+  let blob; try { blob = await FILES.get(d.fileKey); } catch (e) {}
+  if (!blob) { toast('Il file di questa dieta non è su questo dispositivo. Caricalo di nuovo da “Modifica”.', true); return; }
+  if (await saveFile(d.fileName || 'dieta.pdf', blob, d.mime || blob.type || 'application/pdf')) toast('Dieta scaricata');
+}
+function dietForm(d, clientId) {
+  const isNew = !d, c0 = byId('clients', d ? d.clientId : clientId);
+  const vs = clientVisits(d ? d.clientId : clientId);
+  d = d || { clientId, date: todayISO(), visitId: vs.find(v => v.date === todayISO())?.id || '' };
+  const n = S.diets.filter(x => x.clientId === d.clientId).length;
+  openForm({
+    title: isNew ? 'Carica dieta' : (d.title || 'Dieta'),
+    intro: `<p class="muted" style="margin:0;font-size:.88rem">Cliente: <b>${esc(c0?.name || '')}</b>. Carica il piano alimentare (PDF o foto): resta salvato nella scheda del cliente.</p>`,
+    fields: [
+      [{ id: 'title', label: 'Titolo', value: d.title || (isNew ? `Dieta ${n + 1}` : ''), placeholder: 'Es. Piano definizione, settimana tipo', required: true }, { id: 'date', label: 'Data', type: 'date', value: d.date, required: true }],
+      { id: 'visitId', label: 'Visita collegata (facoltativa)', type: 'select', value: d.visitId || '', options: [{ v: '', l: '— nessuna —' }, ...vs.map(v => ({ v: v.id, l: `${VISIT[v.kind]?.l || 'Visita'} del ${dShort(v.date)}` }))] },
+      { id: 'file', label: d.fileKey ? 'Sostituisci il file (facoltativo)' : 'File della dieta (PDF o immagine)', type: 'file', hint: d.fileName ? `File attuale: ${d.fileName}` : 'Massimo 15 MB' },
+      { id: 'notes', label: 'Note', value: d.notes || '', placeholder: 'Es. 1800 kcal, senza lattosio' }
+    ],
+    onChange(v, form, ev) {
+      if (!ev) form.elements.file.accept = 'application/pdf,image/*';
+      if (ev?.target?.name === 'visitId' && v.visitId) { const vv = byId('visits', v.visitId); if (vv && form.elements.date.value === todayISO()) form.elements.date.value = vv.date; }
+    },
+    validate(v) {
+      if (!v.title.trim()) return 'Dai un titolo alla dieta.';
+      if (!v.date) return 'Indica la data.';
+      const f = $('#fld-file')?.files?.[0];
+      if (f && f.size > 15 * 1048576) return 'Il file è troppo grande (massimo 15 MB).';
+      if (isNew && !f) return 'Scegli il file della dieta.';
+    },
+    async onSubmit(v) {
+      const f = $('#fld-file')?.files?.[0], id = d.id || uid();
+      const doc = { ...strip(d), title: v.title.trim(), date: v.date, visitId: v.visitId || '', notes: v.notes.trim(), createdAt: d.createdAt || Date.now() };
+      if (f) {
+        const key = 'diet-' + id + '-' + Date.now();
+        try { await FILES.put(key, f); } catch (e) { toast('Non riesco a salvare il file in questo browser (spazio pieno o archivio bloccato).', true); return false; }
+        if (d.fileKey) FILES.del(d.fileKey).catch(() => {});
+        Object.assign(doc, { fileKey: key, fileName: f.name, mime: f.type || 'application/pdf', size: f.size });
+      }
+      const ok = await put('diets', id, doc);
+      if (ok) { toast(isNew ? 'Dieta caricata' : 'Dieta aggiornata'); setTimeout(() => paymentsSheet(d.clientId), 30); }
+      return ok;
+    },
+    deleteLabel: 'Elimina dieta',
+    onDelete: isNew ? null : async () => { const ok = await del('diets', d.id); if (ok) { if (d.fileKey) FILES.del(d.fileKey).catch(() => {}); toast('Dieta eliminata'); setTimeout(() => paymentsSheet(d.clientId), 30); } return ok; }
   });
 }
 function pkgPay(p) {
@@ -1846,6 +1903,8 @@ async function exportXLSX() {
   if (vis.length) add('Visite', vis, { 'Data': '' });
   const fat = [...S.invoices].sort((a, b) => String(a.date).localeCompare(String(b.date))).map(i => { const c = byId('clients', i.clientId); return { 'Numero': i.number, 'Data': d(i.date), 'Cliente': c?.name || '', 'Codice Fiscale': c?.cf || '', 'Indirizzo': c?.address || '', 'Importo (€)': i.amount != null ? r2(i.amount) : '', 'File': i.fileName || '' }; });
   if (fat.length) add('Fatture', fat, { 'Numero': '' });
+  const die = [...S.diets].sort((a, b) => String(a.date).localeCompare(String(b.date))).map(x => ({ 'Data': d(x.date), 'Cliente': byId('clients', x.clientId)?.name || '', 'Titolo': x.title || '', 'Note': x.notes || '', 'File': x.fileName || '' }));
+  if (die.length) add('Diete', die, { 'Data': '' });
   if (inv.length) add('Investimenti', inv, { 'Nome': '' });
   const buf = X.write(wb, { bookType: 'xlsx', type: 'array', cellDates: true });
   if (await saveFile(`luludex-${todayISO()}.xlsx`, buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) toast('File Excel esportato');
@@ -2021,7 +2080,7 @@ function exportCSV() {
 }
 async function backup() {
   const files = {};
-  for (const i of S.invoices) if (i.fileKey) { try { const b = await FILES.get(i.fileKey); if (b) files[i.fileKey] = { type: i.mime || b.type, data: await blobToB64(b) }; } catch (e) {} }
+  for (const i of [...S.invoices, ...S.diets]) if (i.fileKey) { try { const b = await FILES.get(i.fileKey); if (b) files[i.fileKey] = { type: i.mime || b.type, data: await blobToB64(b) }; } catch (e) {} }
   download(`luludex-backup-${todayISO()}.json`, JSON.stringify({ app: 'bilancio', version: 1, exportedAt: new Date().toISOString(), data: snapshotDocs(), files }), 'application/json');
 }
 function restore(file) {
@@ -2060,6 +2119,9 @@ document.addEventListener('click', e => {
   if (a === 'new-invoice') return invoiceForm(null, t.dataset.client);
   if (a === 'edit-invoice') return invoiceForm(byId('invoices', id));
   if (a === 'invoice-dl') return invoiceDownload(byId('invoices', id));
+  if (a === 'new-diet') return dietForm(null, t.dataset.client);
+  if (a === 'edit-diet') return dietForm(byId('diets', id));
+  if (a === 'diet-dl') return dietDownload(byId('diets', id));
   if (a === 'client-pay-new') { closeModal(); return txForm(null, { kind: 'entrata', scope: 'lavoro', clientId: id }); }
   if (a === 'renew-pkg') { const p = byId('packages', id); return p && pkgForm(null, p.clientId, renewPreset(p)); }
   if (a === 'edit-pkg') return pkgForm(byId('packages', id));
