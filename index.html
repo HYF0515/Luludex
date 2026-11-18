@@ -385,6 +385,35 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
   .toast{bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 }
 @media (prefers-reduced-motion: no-preference){ .bar i{transition:width .4s ease} }
+/* ---------- iPad e tablet ---------- */
+/* Safari su iPad: altezza reale dello schermo (senza barre del browser) e spazio per la barra di sistema in basso */
+@supports (height:100dvh){ .app{min-height:100dvh} @media (min-width:761px){ .side{height:100dvh} } }
+@media (min-width:761px){ .side{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))} .main{padding-bottom:calc(60px + env(safe-area-inset-bottom,0px))} }
+/* Tablet in verticale e iPad mini in orizzontale (761–1100 px): barra laterale stretta con icone ed etichette piccole */
+@media (min-width:761px) and (max-width:1100px){
+  .app{grid-template-columns:84px minmax(0,1fr)}
+  .side{padding:18px 6px calc(16px + env(safe-area-inset-bottom,0px));padding-left:max(6px, env(safe-area-inset-left,0px));gap:16px}
+  .side .brand{justify-content:center} .side .brand b{display:none}
+  .side-foot{display:none}
+  .nav{gap:4px}
+  .nav a{flex-direction:column;gap:4px;padding:10px 2px;font-size:.66rem;line-height:1.15;text-align:center;justify-content:center;letter-spacing:-.01em}
+  .nav a svg{width:22px;height:22px}
+  .nav-badge{position:absolute;top:4px;left:calc(50% + 7px);margin:0}
+  .main{padding-left:max(24px, env(safe-area-inset-left,0px));padding-right:max(24px, env(safe-area-inset-right,0px))}
+  .cl-list{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+  /* il titolo non viene più tagliato: se lo spazio non basta, i comandi vanno sotto */
+  .head.with-nav{flex-wrap:wrap;row-gap:10px}
+  .head.with-nav h1{overflow:visible;text-overflow:clip}
+}
+/* Schermi touch (iPad): niente zoom quando tocchi un campo e pulsanti più comodi da toccare col dito */
+@media (pointer:coarse){ .input,select.input,textarea.input{font-size:16px} }
+@media (pointer:coarse) and (min-width:761px){
+  .btn{min-height:40px} .btn.small{min-height:36px;padding:6px 12px}
+  .icon-btn{width:40px;height:40px}
+  .seg button{min-height:38px}
+  .vs-row{padding-block:10px}
+  .nav a{min-height:48px}
+}
 </style>
 
 <div class="app">
@@ -407,7 +436,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '4'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '5'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
