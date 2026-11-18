@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Luludex</title>
-<meta name="theme-color" content="#F7F5F2" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#17161A" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F3F4F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111417" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -27,33 +27,34 @@
 <link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/splash-640x1136.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: sidebar a sinistra su desktop, barra di navigazione in basso su telefono; contenuto a griglia di pannelli sobri. */
 :root{
-  --bg:#F7F5F2; --surface:#FFFFFF; --surface-2:#F1EEEA; --line:#E7E3DD; --fg:#2F2C33; --muted:#7B7581;
-  --accent:#4F6475; --accent-soft:#E8EEF2; --on-accent:#FFFFFF;
-  --pos:#5E7A56; --neg:#9E5F5F; --warn:#9A7A34; --pos-soft:#EEF4EA; --neg-soft:#F7EDED; --warn-soft:#F8F2E2;
-  --f-display:"Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  /* Luludex: grafite e blu notte, neutri freddi color pietra, accenti salvia, acciaio e mattone */
+  --bg:#F3F4F2; --surface:#FFFFFF; --surface-2:#ECEEEB; --line:#DFE2DF; --fg:#1D2329; --muted:#69727A;
+  --accent:#22344A; --accent-soft:#E4E9EF; --on-accent:#FFFFFF;
+  --pos:#466A4E; --neg:#9B4A3D; --warn:#93712A; --pos-soft:#E7EFE8; --neg-soft:#F5E9E6; --warn-soft:#F4EEDF;
+  --f-display:"Space Grotesk", "Inter", system-ui, sans-serif;
   --f-body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-data:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --bar:#738FA3; --bar-ok:#9EB9C9; --bar-near:#D4AE5A; --bar-over:#C29595;
-  --chart-in:#A9C19D; --chart-out:#9EB9C9; --chart-over:#D9B8B8;
-  --r:14px; --shadow:0 1px 2px rgba(47,44,51,.04), 0 6px 20px rgba(47,44,51,.04);
+  --bar:#4E6A85; --bar-ok:#7F97AE; --bar-near:#C29A48; --bar-over:#B4685A;
+  --chart-in:#8EA889; --chart-out:#7F97AE; --chart-over:#C98D80;
+  --r:10px; --shadow:0 1px 2px rgba(29,35,41,.05), 0 6px 18px rgba(29,35,41,.05);
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#17161A; --surface:#1F1E23; --surface-2:#28262D; --line:#34323A; --fg:#ECE8EF; --muted:#A39DAA;
-  --accent:#9EB9C9; --accent-soft:#26303A; --on-accent:#17161A;
-  --pos:#A9C19D; --neg:#D9A3A3; --warn:#D4AE5A; --pos-soft:#232B21; --neg-soft:#332424; --warn-soft:#322B1C;
-  --bar:#8DA6B8; --bar-ok:#738FA3; --bar-near:#C9A65A; --bar-over:#B98C8C;
-  --chart-in:#93AB88; --chart-out:#8DA6B8; --chart-over:#C29595;
+  --bg:#111417; --surface:#181C20; --surface-2:#21262B; --line:#2D333A; --fg:#E7EAED; --muted:#98A1A9;
+  --accent:#A9BDD2; --accent-soft:#223040; --on-accent:#111417;
+  --pos:#9DBB98; --neg:#E0A193; --warn:#D2AE60; --pos-soft:#1E2A21; --neg-soft:#33221F; --warn-soft:#2F2819;
+  --bar:#8DA4BB; --bar-ok:#5E7891; --bar-near:#C29A48; --bar-over:#B4685A;
+  --chart-in:#8EA889; --chart-out:#8DA4BB; --chart-over:#C98D80;
   --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark }}
 :root[data-theme="dark"]{
-  --bg:#17161A; --surface:#1F1E23; --surface-2:#28262D; --line:#34323A; --fg:#ECE8EF; --muted:#A39DAA;
-  --accent:#9EB9C9; --accent-soft:#26303A; --on-accent:#17161A;
-  --pos:#A9C19D; --neg:#D9A3A3; --warn:#D4AE5A; --pos-soft:#232B21; --neg-soft:#332424; --warn-soft:#322B1C;
-  --bar:#8DA6B8; --bar-ok:#738FA3; --bar-near:#C9A65A; --bar-over:#B98C8C;
-  --chart-in:#93AB88; --chart-out:#8DA6B8; --chart-over:#C29595;
+  --bg:#111417; --surface:#181C20; --surface-2:#21262B; --line:#2D333A; --fg:#E7EAED; --muted:#98A1A9;
+  --accent:#A9BDD2; --accent-soft:#223040; --on-accent:#111417;
+  --pos:#9DBB98; --neg:#E0A193; --warn:#D2AE60; --pos-soft:#1E2A21; --neg-soft:#33221F; --warn-soft:#2F2819;
+  --bar:#8DA4BB; --bar-ok:#5E7891; --bar-near:#C29A48; --bar-over:#B4685A;
+  --chart-in:#8EA889; --chart-out:#8DA4BB; --chart-over:#C98D80;
   --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark }
 *{box-sizing:border-box}
 html,body{min-height:100%}
@@ -158,7 +159,7 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .icon-pick span{display:grid;place-items:center;height:40px;border-radius:9px;border:1px solid var(--line);color:var(--muted)}
 .icon-pick input:checked+span{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .icon-pick input:focus-visible+span{outline:2px solid var(--accent)}
-.tx-ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:.8rem;color:#3A3340}
+.tx-ic{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:.8rem;color:#1D2329}
 .tx-main{min-width:0}
 .tx-main b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tx-main small{color:var(--muted);font-size:.8rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -298,7 +299,7 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 .pc{font-size:.78em;letter-spacing:0}
 .splash{position:fixed;inset:0;z-index:200;background:#FBF7F2;transition:opacity .35s ease}
 .splash img{position:absolute;left:50%;top:50%;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:24px;box-shadow:0 8px 26px rgba(47,44,51,.10)}
-.splash p{position:absolute;left:24px;right:24px;top:calc(50% + 70px);margin:0;text-align:center;color:#8A7F73;font-size:.95rem;font-weight:500;letter-spacing:.03em;opacity:0;animation:splashTxt .3s ease .6s forwards}
+.splash p{position:absolute;left:24px;right:24px;top:calc(50% + 70px);margin:0;text-align:center;color:#69727A;font-size:.95rem;font-weight:500;letter-spacing:.03em;opacity:0;animation:splashTxt .3s ease .6s forwards}
 .splash.loading p{opacity:1;animation:none}
 /* la scritta compare solo se il caricamento dura più di un attimo */
 @keyframes splashTxt{to{opacity:1}}
@@ -310,13 +311,14 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 .pac-due{background:var(--accent-soft);border-radius:12px;padding:12px 14px 4px;margin-bottom:14px}
 .pac-due .list-row{border-bottom:0}
 /* riepilogo in evidenza */
-:root{--hero:#EFEAE3;--hero-fg:#3A342F;--hero-tile:rgba(255,255,255,.72);--hero-muted:#8A7F73;
-  --tag-in:#E4ECDE;--tag-in-fg:#55704D;--tag-out:#F1E3E3;--tag-out-fg:#8A5757;--tag-sav:#E3EBF1;--tag-sav-fg:#4F6475}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--hero:#25232A;--hero-fg:#ECE8EF;--hero-tile:rgba(255,255,255,.05);--hero-muted:#A39DAA;
-  --tag-in:#2B3328;--tag-in-fg:#B4CBA8;--tag-out:#3A2B2D;--tag-out-fg:#E0B3B3;--tag-sav:#28323B;--tag-sav-fg:#B3CAD8}}
-:root[data-theme="dark"]{--hero:#25232A;--hero-fg:#ECE8EF;--hero-tile:rgba(255,255,255,.05);--hero-muted:#A39DAA;
-  --tag-in:#2B3328;--tag-in-fg:#B4CBA8;--tag-out:#3A2B2D;--tag-out-fg:#E0B3B3;--tag-sav:#28323B;--tag-sav-fg:#B3CAD8}
-.hero{background:var(--hero);color:var(--hero-fg);border-radius:20px;padding:18px 16px 16px;display:flex;flex-direction:column;gap:14px}
+:root{--hero:#1F2C3B;--hero-fg:#F2F4F6;--hero-tile:rgba(255,255,255,.07);--hero-muted:#A7B3C0;
+  --tag-in:rgba(142,168,137,.22);--tag-in-fg:#B9D0B4;--tag-out:rgba(201,141,128,.22);--tag-out-fg:#EBBBB0;--tag-sav:rgba(169,189,210,.2);--tag-sav-fg:#C9D7E5}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--hero:#1A2430;--hero-fg:#E7EAED;--hero-tile:rgba(255,255,255,.05);--hero-muted:#98A6B4;
+  --tag-in:rgba(142,168,137,.2);--tag-in-fg:#B9D0B4;--tag-out:rgba(201,141,128,.2);--tag-out-fg:#EBBBB0;--tag-sav:rgba(169,189,210,.18);--tag-sav-fg:#C9D7E5}}
+:root[data-theme="dark"]{--hero:#1A2430;--hero-fg:#E7EAED;--hero-tile:rgba(255,255,255,.05);--hero-muted:#98A6B4;
+  --tag-in:rgba(142,168,137,.2);--tag-in-fg:#B9D0B4;--tag-out:rgba(201,141,128,.2);--tag-out-fg:#EBBBB0;--tag-sav:rgba(169,189,210,.18);--tag-sav-fg:#C9D7E5}
+.hero .pos,.hero .v.pos,.hero .num.pos{color:#B9D0B4!important} .hero .neg,.hero .v.neg,.hero .num.neg{color:#EBBBB0!important} .hero .tag.neu{background:rgba(255,255,255,.1);color:var(--hero-muted)}
+.hero{background:var(--hero);color:var(--hero-fg);border-radius:14px;padding:18px 16px 16px;display:flex;flex-direction:column;gap:14px}
 .hero-top{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
 .hero-top .eyebrow{color:var(--hero-muted)}
 .hero .v{font-family:var(--f-display);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -325,7 +327,7 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 .hero-tiles.t4{grid-template-columns:repeat(4,minmax(0,1fr))}
 .hero-tiles.t2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .hero .tag{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
-.hero .tag.neu{background:var(--surface-2);color:var(--muted)}
+.hero .tag.neu{background:rgba(255,255,255,.1);color:var(--hero-muted)}
 .hero-bar{display:flex;flex-direction:column;gap:6px}.hero-bar-l{display:flex;justify-content:space-between;font-size:.78rem;color:var(--hero-muted)}
 .hero .hero-nw.neg{color:var(--neg)}
 .hero-tile{background:var(--hero-tile);border-radius:12px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
@@ -370,7 +372,7 @@ section.panel.folded>.panel-h{margin-bottom:0}
 @media (max-width:370px){ .hero-tile .v{font-size:.9rem} .hero-nw{font-size:1.6rem} }
 .bank-logo{display:inline-grid;place-items:center;flex:none;border-radius:10px;overflow:hidden;background:#fff;border:1px solid var(--line)}
 .bank-logo img{width:70%;height:70%;object-fit:contain}
-.bank-logo.ini{border:0;color:#3A3340;font-weight:700;font-size:.78rem;letter-spacing:.02em}
+.bank-logo.ini{border:0;color:#1D2329;font-weight:700;font-size:.78rem;letter-spacing:.02em}
 .eye-btn{flex:none;color:var(--muted)}
 .eye-btn[aria-pressed="true"]{color:var(--fg)}
 /* occhio chiuso: tutti gli importi e le percentuali dell'app sono sfocati */
@@ -463,7 +465,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '7'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '8'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -517,8 +519,10 @@ const PALETTE = ['#2F43C4','#2A9D8F','#E06C4C','#8E5CC4','#C99A16','#3D8BD9','#C
 // Colori macaron per le categorie: pastelli morbidi, testo scuro sopra.
 const OLD_MACARON = ['#F7B7C3','#FFD6A5','#FDF1A6','#C8E6B0','#A8E0D4','#AED6F1','#C3C7F4','#D9B8F0','#F5C2E0','#E8CFB0','#B8E2E8','#F9C6A8'];
 // Palette polverosa (rosa fumo, avena, zenzero, matcha, salvia, blu nebbia, glicine, lavanda, cipria, kaki, azzurro latte, caffè latte)
-const MACARON = ['#D9B8B8','#D9C7AE','#E6CE8F','#A9C19D','#B4C7C4','#9EB9C9','#B9C0D3','#C3B2D6','#EBD5D5','#C2BCA3','#C8DCE6','#BFA687'];
-const RECOLOR = Object.fromEntries(OLD_MACARON.map((c, i) => [c, MACARON[i]]));
+const DUSTY = ['#D9B8B8','#D9C7AE','#E6CE8F','#A9C19D','#B4C7C4','#9EB9C9','#B9C0D3','#C3B2D6','#EBD5D5','#C2BCA3','#C8DCE6','#BFA687'];
+// palette di Luludex: toni sobri (acciaio, salvia, sabbia, ardesia, mattone, oliva…)
+const MACARON = ['#C9A79E','#C8B89A','#CDBB86','#9FB39B','#A3BAB8','#93AAC0','#A9B1C4','#B0A9BF','#C7B3AE','#B5B09D','#ADC1CF','#B49E84'];
+const RECOLOR = Object.fromEntries([...OLD_MACARON.map((c, i) => [c, MACARON[i]]), ...DUSTY.map((c, i) => [c, MACARON[i]])]);
 const recolor = d => { if (d && typeof d.color === 'string') { const k = d.color.toUpperCase(); if (RECOLOR[k]) d.color = RECOLOR[k]; } return d; };
 const ACC_TYPES = { conto: 'Conto corrente', credito: 'Carta di credito', carta: 'Carta di debito / prepagata', paypal: 'PayPal', contanti: 'Contanti', risparmio: 'Conto deposito', fondo: 'Fondo deposito', investimenti: 'Conto titoli' };
 const ASSET_CLASSES = ['Azioni','ETF','Obbligazioni','Fondi','Liquidità','Crypto','Immobili','Altro'];
@@ -721,7 +725,7 @@ let saveT;
 function saveLocal() { clearTimeout(saveT); saveT = setTimeout(() => LS.set(LOCAL_KEY, snapshotDocs()), 150); }
 function loadLocal() {
   const d = LS.get(LOCAL_KEY, null) || {};
-  COLS.forEach(c => S[c] = Object.entries(d[c] || {}).map(([id, x]) => ({ ...x, id })));
+  COLS.forEach(c => S[c] = Object.entries(d[c] || {}).map(([id, x]) => recolor({ ...x, id })));
   S.settings = d.settings?.main ? { ...d.settings.main } : {};
 }
 const clean = o => JSON.parse(JSON.stringify(o));
@@ -965,8 +969,8 @@ function monthNav(key) {
   return `<div class="month-nav"><button class="icon-btn" data-act="month" data-key="${key}" data-d="-1" aria-label="Mese precedente">‹</button>${monthPick(key)}<button class="icon-btn" data-act="month" data-key="${key}" data-d="1" aria-label="Mese successivo">›</button></div>`;
 }
 function catBadge(c, kind) {
-  if (kind === 'investimento') return `<div class="tx-ic" style="background:#C8DCE6;color:#4F6475"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${CAT_ICONS.trend}</svg></div>`;
-  if (kind === 'giroconto') return `<div class="tx-ic" style="background:#D8DDE8;color:#4F6475"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.movimenti}</svg></div>`;
+  if (kind === 'investimento') return `<div class="tx-ic" style="background:#ADC1CF;color:#22344A"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${CAT_ICONS.trend}</svg></div>`;
+  if (kind === 'giroconto') return `<div class="tx-ic" style="background:#C9D1DA;color:#22344A"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.movimenti}</svg></div>`;
   const col = c?.color || '#E3E5EC';
   return `<div class="tx-ic" style="background:${esc(col)}" title="${esc(c?.name || 'Senza categoria')}">${catIconSvg(c)}</div>`;
 }
@@ -1801,8 +1805,8 @@ VIEWS.patrimonio = () => {
   const accs = activeAccounts();
   const byClass = {};
   S.holdings.forEach(h => byClass[h.assetClass || 'Altro'] = (byClass[h.assetClass || 'Altro'] || 0) + holdingValue(h));
-  const ALLOC_C = { 'Azioni': '#B9C0D3', 'ETF': '#9EB9C9', 'Obbligazioni': '#B4C7C4', 'Fondi': '#C3B2D6', 'Liquidità': '#E6CE8F', 'Crypto': '#D9C7AE', 'Immobili': '#D9B8B8', 'Altro': '#C8DCE6' };
-  const alloc = [{ k: 'Liquidità sui conti', v: Math.max(0, liquid), c: '#C2BCA3' }, ...Object.entries(byClass).map(([k, v], i) => ({ k, v, c: ALLOC_C[k] || MACARON[i % MACARON.length] }))].filter(x => x.v > 0);
+  const ALLOC_C = { 'Azioni': '#A9B1C4', 'ETF': '#93AAC0', 'Obbligazioni': '#A3BAB8', 'Fondi': '#B0A9BF', 'Liquidità': '#CDBB86', 'Crypto': '#C9A79E', 'Immobili': '#C7B3AE', 'Altro': '#ADC1CF' };
+  const alloc = [{ k: 'Liquidità sui conti', v: Math.max(0, liquid), c: '#B5B09D' }, ...Object.entries(byClass).map(([k, v], i) => ({ k, v, c: ALLOC_C[k] || MACARON[i % MACARON.length] }))].filter(x => x.v > 0);
   const allocT = alloc.reduce((s, x) => s + x.v, 0) || 1;
   const hs = [...S.holdings].sort((a, b) => holdingValue(b) - holdingValue(a));
   return `
