@@ -76,6 +76,11 @@ h1{font-size:1.75rem;font-weight:700} h2{font-size:1.1rem;font-weight:700} h3{fo
 .nav{display:flex;flex-direction:column;gap:2px}
 .nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:500}
 .nav a svg{width:18px;height:18px;flex:none}
+.nav a{position:relative}
+.nav-badge{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--warn);color:#fff;font-size:.7rem;font-weight:700;display:inline-grid;place-items:center;line-height:1}
+@media (max-width:760px){ .nav-badge{position:absolute;top:6px;left:calc(50% + 6px);margin:0} }
+.pk.near{border-left:3px solid var(--warn);padding-left:10px;margin-left:-13px}
+.near-why{color:var(--warn);font-weight:600;font-size:.82rem}
 .nav a:hover{background:var(--surface-2);color:var(--fg)}
 .nav a[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
 .side-foot{margin-top:auto;padding:0 8px;font-size:.78rem;color:var(--muted)}
@@ -610,7 +615,7 @@ const navIcon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 function renderNav() {
   const r = route();
   $('#nav').innerHTML = Object.keys(ROUTES).map(k =>
-    `<a href="#${k}" class="${MORE_ROUTES.includes(k) ? 'more' : ''}" ${k === r ? 'aria-current="page"' : ''} aria-label="${esc(routeLabel(k))}" title="${esc(routeLabel(k))}">${navIcon(k)}<span>${esc(routeLabel(k))}</span></a>`).join('')
+    { const n = k === 'clienti' ? nearEndPkgs().length : 0; return `<a href="#${k}" class="${MORE_ROUTES.includes(k) ? 'more' : ''}" ${k === r ? 'aria-current="page"' : ''} aria-label="${esc(routeLabel(k))}${n ? ` (${n} abbonament${n === 1 ? 'o' : 'i'} quasi al termine)` : ''}" title="${esc(routeLabel(k))}">${navIcon(k)}<span>${esc(routeLabel(k))}</span>${n ? `<b class="nav-badge" aria-hidden="true">${n}</b>` : ''}</a>`; }).join('')
 ;
 }
 
@@ -924,6 +929,17 @@ function pkgCanRenew(p) {
 }
 // da rinnovare: rinnovabile e finito da non più di 60 giorni (oltre si considera un cliente che ha smesso)
 const toRenew = p => pkgCanRenew(p) && (!pkgEnd(p) || pkgEnd(p) >= isoOf(new Date(Date.now() - 60 * 864e5)) || pkgStatus(p) === 'completato' && Object.keys(pkgByMonth(p)).sort().pop() >= ymOf(isoOf(new Date(Date.now() - 60 * 864e5))));
+// Avviso "quasi al termine": PT con le lezioni di circa una settimana rimaste, oppure scadenza entro 14 giorni.
+const NEAR_DAYS = 14;
+function pkgNearEnd(p) {
+  if (pkgStatus(p) !== 'attivo' || pkgNext(p)) return '';
+  const why = [];
+  if (p.kind === 'pt' && +p.lessons) { const left = +p.lessons - pkgDone(p); if (left > 0 && left <= Math.max(1, +p.perWeek || 1)) why.push(`${left === 1 ? 'resta 1 lezione' : `restano ${left} lezioni`}`); }
+  const end = pkgEnd(p), today = todayISO();
+  if (end && end >= today) { const days = Math.round((new Date(end + 'T12:00:00') - new Date(today + 'T12:00:00')) / 864e5); if (days <= NEAR_DAYS) why.push(days === 0 ? 'scade oggi' : days === 1 ? 'scade domani' : `scade tra ${days} giorni (${dShort(end)})`); }
+  return why.join(' · ');
+}
+const nearEndPkgs = () => S.packages.filter(p => pkgNearEnd(p)).sort((a, b) => String(pkgEnd(a)).localeCompare(String(pkgEnd(b))));
 function renewPreset(p) {
   const start = todayISO();
   return { kind: p.kind, months: p.months, perWeek: p.perWeek, lessons: p.kind === 'pt' ? pkgLessons(p.months, p.perWeek) : 0, price: p.price, startDate: start, endDate: calcEnd(start, p.months), clientId: p.clientId };
@@ -944,8 +960,10 @@ function pkgHTML(p) {
       <div class="bar ${f >= 1 ? 'done' : ''}"><i style="width:${(f * 100).toFixed(1)}%"></i></div>`;
   }
   const pay = price ? (due <= 0 ? `<span class="pill pos">Saldato</span>` : `<span class="pill neg num">Da saldare ${money0(due)}</span>`) : `<span class="pill">Prezzo non indicato</span>`;
-  return `<div class="pk ${pkgOpen(p) ? '' : 'ended'}">
-    <div class="pk-top"><span class="pill" style="color:var(--fg)">${p.kind === 'coaching' ? 'Coaching' : 'PT'}</span><b>${p.months} mesi${p.kind === 'pt' ? ` · ${p.perWeek} a settimana` : ''}</b><span class="pill ${st.c}">${st.l}</span></div>
+  const near = pkgNearEnd(p);
+  return `<div class="pk ${pkgOpen(p) ? '' : 'ended'} ${near ? 'near' : ''}">
+    <div class="pk-top"><span class="pill" style="color:var(--fg)">${p.kind === 'coaching' ? 'Coaching' : 'PT'}</span><b>${p.months} mesi${p.kind === 'pt' ? ` · ${p.perWeek} a settimana` : ''}</b>${near ? '<span class="pill warn">Quasi al termine</span>' : `<span class="pill ${st.c}">${st.l}</span>`}</div>
+    ${near ? `<span class="near-why">Attenzione: ${esc(near)}</span>` : ''}
     <small class="muted">${p.startDate ? `Dal ${dShort(p.startDate)} al ${dShort(end)}` : 'Data di inizio non indicata'}</small>
     ${prog}
     <div class="pk-row"><span>${pay}</span>${price ? `<span class="muted num">Pagati ${money0(paid)} su ${money0(price)}</span>` : ''}</div>
@@ -1006,6 +1024,8 @@ VIEWS.clienti = () => {
     <div class="kpi"><span class="eyebrow">Lezioni a ${MESI[+ym.slice(5) - 1].toLowerCase()}</span><span class="v num">${lessonsM}</span><span class="s">Lezioni PT · ${visitsM} visit${visitsM === 1 ? 'a' : 'e'} nel mese</span></div>
     <div class="kpi"><span class="eyebrow">Da rinnovare</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · lezioni finite' : 'Nessun abbonamento da rinnovare'}</span></div>
   </section>
+  ${(() => { const ne = nearEndPkgs(); if (!ne.length) return ''; return `<div class="banner"><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><b>${ne.length === 1 ? '1 abbonamento quasi al termine' : ne.length + ' abbonamenti quasi al termine'}</b>
+      ${ne.slice(0, 5).map(p => `<span><button type="button" class="cl-name" style="display:inline;font-size:.92rem" data-act="client-pays" data-id="${esc(p.clientId)}">${esc(byId('clients', p.clientId)?.name || '?')}</button> <span class="muted">· ${esc(pkgLabel(p))} · ${esc(pkgNearEnd(p))}</span></span>`).join('')}${ne.length > 5 ? `<span class="muted">e altri ${ne.length - 5}</span>` : ''}</div></div>`; })()}
   ${missing.length ? `<div class="banner"><div><b>Segna le lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}.</b> <span class="muted">Mancano per ${missing.length} pacchett${missing.length === 1 ? 'o' : 'i'} PT: ${esc([...new Set(missing.map(p => byId('clients', p.clientId)?.name || '?'))].slice(0, 3).join(', '))}${missing.length > 3 ? '…' : ''}.</span></div><button class="btn small primary" data-act="lessons-month" data-ym="${prevM}">Segna lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}</button></div>` : ''}
   <div class="cl-tools">
     <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
