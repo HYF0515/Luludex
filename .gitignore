@@ -1,3 +1,4 @@
 dist/
 *.png
 !icons/*.png
+!icons/splash/*.png
