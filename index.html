@@ -373,7 +373,9 @@ section.panel.folded>.panel-h{margin-bottom:0}
 .bank-logo.ini{border:0;color:#3A3340;font-weight:700;font-size:.78rem;letter-spacing:.02em}
 .eye-btn{flex:none;color:var(--muted)}
 .eye-btn[aria-pressed="true"]{color:var(--fg)}
-body.hide-summary .privacy .v,body.hide-summary .privacy .s,body.hide-summary .privacy .tx-amt,body.hide-summary .privacy .txday .num{filter:blur(9px);user-select:none;-webkit-user-select:none;pointer-events:none}
+/* occhio chiuso: tutti gli importi e le percentuali dell'app sono sfocati */
+body.hide-summary :is(.num,.pc,.v,.s,.tx-amt,.hero-bar-l,.chart,.donut,.money,input[data-budget]){filter:blur(7px);user-select:none;-webkit-user-select:none}
+body.hide-summary .privacy .v,body.hide-summary .privacy .s{pointer-events:none}
 @media (prefers-reduced-motion: no-preference){ .kpis.privacy .v,.kpis.privacy .s{transition:filter .2s ease} }
 .budget-mode-row{display:flex;justify-content:flex-end}
 .budget-mode-row .seg{min-width:220px}
@@ -461,7 +463,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '6'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '7'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1029,7 +1031,7 @@ function monthBudgetCard(ym, st) {
       <div><span class="lbl">${left >= 0 ? 'Rimanente' : 'Oltre il budget'}</span><span class="v num ${left < 0 ? 'neg' : ''}">${money(Math.abs(left))}</span></div>
       <div><span class="lbl">${daysLeft ? 'Al giorno' : 'Usato'}</span><span class="v num">${daysLeft ? money(Math.max(0, left) / daysLeft) : pct(ratio)}</span></div>
     </div>
-    <div class="bcard-foot"><span class="muted">${pct(ratio)}</span><span class="muted">${cur ? `Mancano ${daysLeft} giorn${daysLeft === 1 ? 'o' : 'i'}` : future ? 'Mese non iniziato' : 'Mese concluso'}</span></div>
+    <div class="bcard-foot"><span class="muted">${pct(ratio)}</span><span class="muted">${cur ? (daysLeft === 1 ? 'Manca 1 giorno' : `Mancano ${daysLeft} giorni`) : future ? 'Mese non iniziato' : 'Mese concluso'}</span></div>
     <div class="bar ${ratio > 1 ? 'over' : ratio >= .9 ? 'near' : ''}" style="height:8px"><i style="width:${Math.min(100, ratio * 100).toFixed(1)}%"></i></div>
   </section>`;
 }
@@ -1042,7 +1044,7 @@ VIEWS.mensile = () => {
   ${heroCard('Risparmio del mese', money0(st.net), [['Entrate', 'in', money0(st.inc), 'pos'], ['Uscite', 'out', money0(st.exp), 'neg']], '', st.net < 0 ? 'neg' : '')}
   ${monthBudgetCard(ym, st)}
   <div class="grid g-2">
-    <section class="panel"><div class="panel-h"><h2>Spese per categoria</h2><a class="btn small ghost" href="#budget">Budget →</a></div>
+    <section class="panel"><div class="panel-h"><h2>Spese per categoria</h2></div>
       ${catBars(st.byCat, `Nessuna spesa registrata in ${ymLabel(ym).toLowerCase()}.`)}
     </section>
     <section class="panel"><div class="panel-h"><h2>Ultimi movimenti</h2><a class="btn small ghost" href="#movimenti">Tutti →</a></div>${txList(recent, { group: false })}</section>
@@ -1113,19 +1115,23 @@ function catDonut(byCat) {
 }
 function yearBudgetPanel(year) {
   const y = yearBudget(year);
-  const head = `<div class="panel-h"><h2>Budget ${year}</h2><a class="btn small ghost" href="#budget">Modifica →</a></div>`;
+  const head = `<div class="panel-h"><h2>Budget ${year}</h2></div>`;
   const donut = catDonut(yearByCat(year));
   const pie = donut ? `<h3 class="sub-h">Ripartizione delle spese</h3>${donut}` : '';
   if (!y.bIds.length) return `<section class="panel">${head}<div class="empty"><p>Imposta un budget mensile per categoria per vedere come stai andando nell'anno.</p><a class="btn" href="#budget">Imposta il budget</a></div>${pie}</section>`;
   if (!y.elapsed) return `<section class="panel">${head}<p class="muted" style="margin:0">Il ${year} non è ancora iniziato. Budget previsto per l'anno: <b class="num">${money0(y.yearB)}</b>.</p></section>`;
   const diff = y.ytdB - y.spent;
   const over = y.bIds.map(id => ({ c: cat(id), d: (y.byCat[id] || 0) - y.ytdCat[id] })).filter(x => x.c && x.d >= 1).sort((a, b) => b.d - a.d).slice(0, 5);
-  return `<section class="panel">${head}
-    <div class="kpis k3 privacy">
-      <div class="kpi"><span class="eyebrow">${diff >= 0 ? 'Sotto il budget' : 'Sopra il budget'}</span><span class="v num ${diff >= 0 ? 'pos' : 'neg'}">${money0(Math.abs(diff))}</span></div>
-      <div class="kpi"><span class="eyebrow">Budget a oggi</span><span class="v num">${money0(y.ytdB)}</span></div>
-      <div class="kpi"><span class="eyebrow">${y.isCur ? 'Proiezione a fine anno' : 'Speso nell\'anno'}</span><span class="v num ${(y.isCur ? y.proj : y.spent) > y.yearB ? 'neg' : ''}">${money0(y.isCur ? y.proj : y.spent)}</span></div>
+  const ratio = y.ytdB ? y.spent / y.ytdB : 0, mLeft = 12 - y.elapsed, endV = y.isCur ? y.proj : y.spent;
+  // stesso stile del riquadro "Budget del mese" della sezione Mensile
+  return `<section class="panel bcard privacy">${head}
+    <div class="bcard-cols">
+      <div><span class="lbl">${diff >= 0 ? 'Sotto il budget' : 'Sopra il budget'}</span><span class="v num ${diff >= 0 ? 'pos' : 'neg'}">${money0(Math.abs(diff))}</span></div>
+      <div><span class="lbl">Budget a oggi</span><span class="v num">${money0(y.ytdB)}</span></div>
+      <div><span class="lbl">${y.isCur ? 'Fine anno' : 'Speso'}</span><span class="v num ${endV > y.yearB ? 'neg' : ''}">${money0(endV)}</span></div>
     </div>
+    <div class="bcard-foot"><span class="muted">${pct(ratio)}</span><span class="muted">${y.isCur ? (mLeft ? (mLeft === 1 ? 'Manca 1 mese' : `Mancano ${mLeft} mesi`) : 'Ultimo mese') : 'Anno concluso'}</span></div>
+    <div class="bar ${ratio > 1 ? 'over' : ratio >= .9 ? 'near' : ''}" style="height:8px"><i style="width:${Math.min(100, ratio * 100).toFixed(1)}%"></i></div>
     <h3 class="sub-h">Categorie oltre il budget</h3>
     ${over.length ? over.map(x => `<div class="list-row"><div class="l">${catBadge(x.c, 'spesa')}<span>${esc(x.c.name)}</span></div><span class="num neg">+${money0(x.d)}</span></div>`).join('') : `<p class="muted" style="margin:0">Nessuna categoria sopra il budget. Ottimo!</p>`}
     ${pie}
@@ -1726,7 +1732,7 @@ function spentIn(id, prefix) {
   for (const tx of S.transactions) { if (!String(tx.date).startsWith(prefix)) continue; any = true; if (isOut(tx) && tx.categoryId === id) t += +tx.amount || 0; }
   return any ? t : null;
 }
-const prevHint = (label, v) => `<small class="muted" style="display:block;font-size:.75rem;margin-top:3px;white-space:nowrap">${label}: ${v == null ? '—' : money0(v)}</small>`;
+const prevHint = (label, v) => `<small class="muted money" style="display:block;font-size:.75rem;margin-top:3px;white-space:nowrap">${label}: ${v == null ? '—' : money0(v)}</small>`;
 const hasMonthOverride = (id, ym) => { const bm = (S.settings.budgetsMonth || {})[ym]; return !!(bm && bm[id] != null); };
 // Budget annuale: quello dedicato se c'è, altrimenti la somma dei 12 budget mensili.
 function annualBudget(id, year = S.ui.budgetYear) {
@@ -1746,7 +1752,7 @@ function budgetYearView() {
     let sumM = 0, varies = false; for (let m = 1; m <= 12; m++) { const v = monthBudget(c.id, year + '-' + pad(m)); sumM += v; if (hasMonthOverride(c.id, year + '-' + pad(m))) varies = true; }
     const expected = b * y.elapsed / 12;
     const cls = b && r > 1 ? 'over' : b && s > expected * 1.05 && y.isCur ? 'near' : '';
-    const sub = own ? `<small class="muted" style="display:block;font-size:.75rem">Budget annuale dedicato${+mb[c.id] ? ` · mensile ${money0(+mb[c.id])}` : ''}</small>` : (sumM ? `<small class="muted" style="display:block;font-size:.75rem">${varies ? 'Somma dei budget dei 12 mesi' : 'Da budget mensile: 12 × ' + money0(sumM / 12)}</small>` : '');
+    const sub = own ? `<small class="muted money" style="display:block;font-size:.75rem">Budget annuale dedicato${+mb[c.id] ? ` · mensile ${money0(+mb[c.id])}` : ''}</small>` : (sumM ? `<small class="muted money" style="display:block;font-size:.75rem">${varies ? 'Somma dei budget dei 12 mesi' : 'Da budget mensile: 12 × ' + money0(sumM / 12)}</small>` : '');
     return `<tr><td><div class="catname"><i class="dot" style="background:${esc(c.color)}"></i><span>${esc(c.name)}</span></div>${sub}
       <div class="bar ${cls}" style="margin-top:8px"><i style="width:${Math.min(100, r * 100).toFixed(1)}%"></i></div></td>
       <td class="r" style="width:160px"><input class="input num" style="text-align:right" id="by-${esc(c.id)}" data-budget-year="${esc(c.id)}" inputmode="decimal" placeholder="${sumM ? String(Math.round(sumM * 100) / 100).replace('.', ',') : '—'}" value="${own ? String(+yb[c.id]).replace('.', ',') : ''}" aria-label="Budget annuale ${esc(c.name)}">${prevHint('Speso ' + (+year - 1), spentIn(c.id, String(+year - 1)))}</td>
@@ -1816,7 +1822,7 @@ VIEWS.patrimonio = () => {
       const lastPay = sortTx(S.transactions.filter(t => (t.kind === 'giroconto') && t.toAccountId === a.id))[0];
       const since = lastPay ? lastPay.date : '';
       const spent = S.transactions.filter(t => t.kind === 'spesa' && !t.paidBy && t.accountId === a.id && (!since || t.date > since)).reduce((s2, t) => s2 + +t.amount, 0);
-      return `<div class="list-row" style="flex-wrap:wrap"><div class="l" style="align-items:flex-start">${bankLogo(a, 30)}<div style="min-width:0"><b>${esc(a.name)}</b><small class="muted" style="display:block">${from ? 'Addebito su ' + esc(from.name) : 'Conto di addebito non impostato'} · ${lastPay ? 'ultimo addebito ' + dShort(lastPay.date) + ' (' + money(+lastPay.amount) + ')' : 'nessun addebito registrato'}${since ? ' · speso da allora ' + money(spent) : ''}</small></div></div>
+      return `<div class="list-row" style="flex-wrap:wrap"><div class="l" style="align-items:flex-start">${bankLogo(a, 30)}<div style="min-width:0"><b>${esc(a.name)}</b><small class="muted money" style="display:block">${from ? 'Addebito su ' + esc(from.name) : 'Conto di addebito non impostato'} · ${lastPay ? 'ultimo addebito ' + dShort(lastPay.date) + ' (' + money(+lastPay.amount) + ')' : 'nessun addebito registrato'}${since ? ' · speso da allora ' + money(spent) : ''}</small></div></div>
         <div style="display:flex;gap:8px;align-items:center;margin-left:auto"><span class="num ${due > 0.005 ? 'neg' : due < -0.005 ? 'pos' : 'muted'}" style="font-weight:600">${due > 0.005 ? 'Da pagare ' + money(due) : due < -0.005 ? 'A credito ' + money(-due) : 'Saldata'}</span>${due > 0.005 ? `<button class="btn small primary" data-act="card-pay" data-id="${esc(a.id)}">Registra addebito</button>` : ''}</div></div>`;
     }).join('')}</section>`; })()}
   <section class="panel"><div class="panel-h"><h2>Conti</h2><span class="muted num">Totale ${money(accs.filter(a => a.type !== 'credito').reduce((s, a) => s + (bal[a.id] || 0), 0))}</span></div>
@@ -1848,7 +1854,7 @@ VIEWS.obiettivi = () => {
     ${goals.length ? `<div class="goals">${goals.map(g => {
       const t = +g.target || 0, s = +g.saved || 0, r = t ? s / t : 0, rem = Math.max(0, t - s);
       let need = '';
-      if (g.deadline && rem > 0) { const months = Math.max(1, Math.round(daysBetween(today, g.deadline) / 30.44)); need = g.deadline < today ? `<span class="pill neg">Scadenza superata</span>` : `<span class="muted">Servono ${money0(rem / months)} al mese per ${months} mes${months === 1 ? 'e' : 'i'}</span>`; }
+      if (g.deadline && rem > 0) { const months = Math.max(1, Math.round(daysBetween(today, g.deadline) / 30.44)); need = g.deadline < today ? `<span class="pill neg">Scadenza superata</span>` : `<span class="muted money">Servono ${money0(rem / months)} al mese per ${months} mes${months === 1 ? 'e' : 'i'}</span>`; }
       else if (rem <= 0) need = `<span class="pill pos">Raggiunto</span>`;
       return `<div class="panel goal"><div class="goal-top"><div><h3>${esc(g.name)}</h3><span class="muted" style="font-size:.82rem">${g.deadline ? 'Entro ' + dShort(g.deadline) : 'Senza scadenza'}</span></div><button class="icon-btn" data-act="edit-goal" data-id="${esc(g.id)}" aria-label="Modifica obiettivo">⋯</button></div>
         <div><span class="num" style="font-family:var(--f-display);font-size:1.4rem;font-weight:700">${money0(s)}</span> <span class="muted num">di ${money0(t)}</span></div>
