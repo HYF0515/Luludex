@@ -1645,6 +1645,7 @@ async function impGo() {
 
 /* ---------- export e backup ---------- */
 function download(filename, text, mime) {
+  if (S.dl) { saveFile(filename, text, mime); return; }
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = filename;
@@ -1949,6 +1950,8 @@ async function boot() {
     first = false;
   });
 }
+// Dentro un Artifact di claude.ai i download passano dalla capability "downloads".
+if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { S.dl = d; schedule(); }).catch(() => { S.dl = null; schedule(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 boot();
 })();
