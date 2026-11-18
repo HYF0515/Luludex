@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Bubudex</title>
+<title>Luludex</title>
 <meta name="theme-color" content="#F3F4F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1117" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Bubudex">
+<meta name="apple-mobile-web-app-title" content="Luludex">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -240,7 +240,7 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 
 <div class="app">
   <aside class="side">
-    <div class="brand"><div class="brand-mark">b<i></i></div><b>Bubudex</b></div>
+    <div class="brand"><div class="brand-mark">l<i></i></div><b>Luludex</b></div>
     <nav class="nav" id="nav" aria-label="Sezioni"></nav>
     <div class="side-foot"><span class="sync" id="sync"><i></i><span>Sincronizzato</span></span><span>Dati privati, visibili solo a te.</span></div>
   </aside>
@@ -346,7 +346,7 @@ const accColor = a => OLD2MAC[a?.color] || a?.color || '#E3E5EC';
 const accCur = id => acc(id)?.currency || BASE;
 const txCur = t => t.currency || BASE;
 const txOrig = t => t.origAmount != null ? +t.origAmount : +t.amount;
-S.fx = (() => { try { return JSON.parse(localStorage.getItem('bubudex.fx') || '{}'); } catch (e) { return {}; } })();
+S.fx = (() => { try { return JSON.parse(localStorage.getItem('luludex.fx') || '{}'); } catch (e) { return {}; } })();
 function rateOf(cur) {
   if (!cur || cur === BASE) return 1;
   const s = S.settings.rates?.[cur], f = S.fx[cur];
@@ -375,7 +375,7 @@ async function fxRefresh(force) {
     if (!r.ok) return;
     const j = await r.json();
     for (const c of curs) if (j.rates?.[c]) S.fx[c] = { rate: 1 / j.rates[c], date: j.date, checked: today };
-    try { localStorage.setItem('bubudex.fx', JSON.stringify(S.fx)); } catch (e) {}
+    try { localStorage.setItem('luludex.fx', JSON.stringify(S.fx)); } catch (e) {}
     schedule();
     if (force) toast('Cambi aggiornati (BCE, ' + dShort(j.date) + ')');
   } catch (e) { if (force) toast('Non riesco a scaricare i cambi: controlla la connessione.', true); }
@@ -1472,7 +1472,7 @@ async function exportXLSX() {
   if (props.length) add('Proprietà', props, { 'Nome': '' });
   if (inv.length) add('Investimenti', inv, { 'Nome': '' });
   const buf = X.write(wb, { bookType: 'xlsx', type: 'array', cellDates: true });
-  if (await saveFile(`bubudex-${todayISO()}.xlsx`, buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) toast('File Excel esportato');
+  if (await saveFile(`luludex-${todayISO()}.xlsx`, buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) toast('File Excel esportato');
 }
 async function readSpreadsheet(file) {
   const X = await loadXLSX();
@@ -1559,7 +1559,7 @@ function renderImport() {
   const accSel = `<div class="field"><label for="imp-acc">Conto di destinazione</label><select class="input" id="imp-acc">${accOptions().map(a => `<option value="${esc(a.v)}" ${a.v === IMP.accountId ? 'selected' : ''}>${esc(a.l)}</option>`).join('')}</select></div>`;
   const fileIn = `<div class="field"><label for="imp-file">File CSV o Excel</label><input class="input" type="file" id="imp-file" accept=".csv,.txt,text/csv,.xlsx,.xls,.ods"></div>`;
   if (!IMP.rows.length) {
-    b.innerHTML = `<div class="row2">${accSel}${fileIn}</div><p class="muted" style="margin:0;font-size:.88rem">Esporta i movimenti dall'home banking in formato CSV o Excel (.xlsx, .xls). Va bene anche un file Excel esportato da Bubudex. Dopo il caricamento potrai controllare le colonne e un'anteprima prima di importare.</p>`;
+    b.innerHTML = `<div class="row2">${accSel}${fileIn}</div><p class="muted" style="margin:0;font-size:.88rem">Esporta i movimenti dall'home banking in formato CSV o Excel (.xlsx, .xls). Va bene anche un file Excel esportato da Luludex. Dopo il caricamento potrai controllare le colonne e un'anteprima prima di importare.</p>`;
     return;
   }
   const hdrRow = IMP.rows[IMP.skip] || [];
@@ -1643,13 +1643,13 @@ function exportCSV() {
   download(`movimenti-${todayISO()}.csv`, '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8');
 }
 function backup() {
-  download(`bubudex-backup-${todayISO()}.json`, JSON.stringify({ app: 'bilancio', version: 1, exportedAt: new Date().toISOString(), data: snapshotDocs() }, null, 1), 'application/json');
+  download(`luludex-backup-${todayISO()}.json`, JSON.stringify({ app: 'bilancio', version: 1, exportedAt: new Date().toISOString(), data: snapshotDocs() }, null, 1), 'application/json');
 }
 function restore(file) {
   const r = new FileReader();
   r.onload = () => {
     let j; try { j = JSON.parse(r.result); } catch (e) { toast('Il file non è un backup valido.', true); return; }
-    if (!j || j.app !== 'bilancio' || !j.data) { toast('Il file non è un backup di Bubudex.', true); return; }
+    if (!j || j.app !== 'bilancio' || !j.data) { toast('Il file non è un backup di Luludex.', true); return; }
     let n = 0;
     for (const c of [...COLS, 'settings']) for (const [id, d] of Object.entries(j.data[c] || {})) { if (d && typeof d === 'object') { put(c, id, d); n++; } }
     toast(`Ripristinati ${n} elementi`);
@@ -1719,7 +1719,7 @@ document.addEventListener('click', e => {
   if (a === 'set-pass') return setPassword();
   if (a === 'email-login') { const f = $('#auth-form'); if (f) { f.hidden = false; t.hidden = true; } return; }
   if (a === 'reset-pass') return resetPass();
-  if (a === 'reset-config') { LS.del('bubudex.firebase'); location.reload(); }
+  if (a === 'reset-config') { LS.del('luludex.firebase'); location.reload(); }
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('#modal').hidden) closeModal();
@@ -1781,7 +1781,7 @@ const DEFAULT_CATS = [
   ['c-stip', 'Stipendio', 'entrata'], ['c-bonus', 'Bonus e premi', 'entrata'], ['c-rend', 'Rendite e dividendi', 'entrata'], ['c-rimb', 'Rimborsi', 'entrata'], ['c-altro-e', 'Altro', 'entrata']
 ];
 function getConfig() {
-  const c = window.BUBUDEX_FIREBASE || {}, l = LS.get('bubudex.firebase', {});
+  const c = window.LULUDEX_FIREBASE || {}, l = LS.get('luludex.firebase', {});
   const cfg = (c.apiKey && c.projectId) ? c : l;
   return { ...cfg, fromFile: !!(c.apiKey && c.projectId) };
 }
@@ -1794,15 +1794,15 @@ function parseFirebaseConfig(txt) {
   }
   return out;
 }
-const brandHTML = `<div class="brand"><div class="brand-mark">b<i></i></div><b>Bubudex</b></div>`;
+const brandHTML = `<div class="brand"><div class="brand-mark">l<i></i></div><b>Luludex</b></div>`;
 function setupView() {
   return `<div class="auth">${brandHTML}<h1>Collega Firebase</h1>
   <p class="muted" style="margin:0">Una sola volta per dispositivo. Nella console di Firebase apri <b>Impostazioni progetto → Generali → Le tue app</b> e copia il blocco <b>firebaseConfig</b>.</p>
   <form id="setup-form" class="panel" style="display:flex;flex-direction:column;gap:14px" novalidate>
     <div class="field"><label for="cfg-snippet">Configurazione Firebase</label><textarea class="input mono" id="cfg-snippet" rows="9" spellcheck="false" autocapitalize="off" placeholder='const firebaseConfig = {
   apiKey: "AIza…",
-  authDomain: "bubudex-xxxx.firebaseapp.com",
-  projectId: "bubudex-xxxx",
+  authDomain: "luludex-xxxx.firebaseapp.com",
+  projectId: "luludex-xxxx",
   appId: "1:…:web:…"
 };'></textarea></div>
     <div class="form-err" id="cfg-err" hidden></div>
@@ -1812,7 +1812,7 @@ function setupView() {
 function setupSubmit() {
   const cfg = parseFirebaseConfig($('#cfg-snippet').value), err = $('#cfg-err');
   if (!cfg.apiKey || !cfg.projectId || !cfg.authDomain) { err.textContent = 'Non trovo apiKey, authDomain e projectId: incolla l\'intero blocco firebaseConfig.'; err.hidden = false; return; }
-  LS.set('bubudex.firebase', cfg);
+  LS.set('luludex.firebase', cfg);
   location.reload();
 }
 function authView() {
@@ -1902,7 +1902,7 @@ async function logout(btn) {
   unsubs.forEach(u => u()); unsubs = [];
   try { await firebase.auth().signOut(); } catch (e) {}
   try { await S.fs.terminate(); await S.fs.clearPersistence(); } catch (e) {}
-  LS.del('bubudex.fx');
+  LS.del('luludex.fx');
   location.hash = ''; location.reload();
 }
 function startSession(user) {
