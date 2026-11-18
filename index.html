@@ -859,7 +859,13 @@ const pkgLessons = (months, perWeek) => (+months || 0) * 4 * (+perWeek || 0);
 const pkgEnd = p => { if (!p.startDate) return ''; const d = new Date(p.startDate + 'T12:00:00'); d.setMonth(d.getMonth() + (+p.months || 0)); d.setDate(d.getDate() - 1); return isoOf(d); };
 const pkgPaid = p => S.transactions.filter(t => t.packageId === p.id && t.kind === 'entrata').reduce((s, t) => s + (+t.amount || 0), 0);
 const pkgDue = p => Math.max(0, Math.round(((+p.price || 0) - pkgPaid(p)) * 100) / 100);
-const pkgDone = p => (p.log || []).length;
+// Lezioni fatte, registrate per mese: byMonth { 'AAAA-MM': n }. "prevDone" = lezioni fatte prima di usare l'app.
+// Le lezioni segnate una per una nella versione precedente (log di date) vengono contate nel loro mese.
+const pkgByMonth = p => { const m = { ...(p.byMonth || {}) }; (p.log || []).forEach(d => { const k = ymOf(d); m[k] = (+m[k] || 0) + 1; }); return m; };
+const pkgDone = p => (+p.prevDone || 0) + Object.values(pkgByMonth(p)).reduce((a, b) => a + (+b || 0), 0);
+const pkgWithMonth = (p, ym, n) => { const m = pkgByMonth(p); if (n > 0) m[ym] = n; else delete m[ym]; return { ...strip(p), byMonth: m, log: [] }; };
+const monthBounds = ym => [ym + '-01', isoOf(new Date(+ym.slice(0, 4), +ym.slice(5), 0))];
+const ptInMonth = ym => { const [a, b] = monthBounds(ym); return S.packages.filter(p => p.kind === 'pt' && ((p.startDate && p.startDate <= b && pkgEnd(p) >= a) || pkgByMonth(p)[ym] != null)); };
 const pkgStatus = p => { const today = todayISO(), end = pkgEnd(p); if (p.kind === 'pt' && +p.lessons && pkgDone(p) >= +p.lessons) return 'completato'; if (end && end < today) return 'scaduto'; if (p.startDate && p.startDate > today) return 'futuro'; return 'attivo'; };
 const pkgOpen = p => ['attivo', 'futuro'].includes(pkgStatus(p));
 const pkgLabel = p => p.kind === 'coaching' ? `Coaching ${p.months} mesi` : `PT ${p.months} mesi · ${p.perWeek} a settimana`;
@@ -888,9 +894,11 @@ function pkgHTML(p) {
   const st = PKG_STATUS[pkgStatus(p)], paid = pkgPaid(p), due = pkgDue(p), price = +p.price || 0, end = pkgEnd(p);
   let prog;
   if (p.kind === 'pt') {
-    const tot = +p.lessons || 0, done = pkgDone(p), last = [...(p.log || [])].sort().pop();
-    prog = `<div class="pk-row"><span><b class="num">${done}</b> <span class="muted">di</span> <b class="num">${tot}</b> <span class="muted">lezioni</span></span><span class="muted">${tot - done > 0 ? `${tot - done} rimast${tot - done === 1 ? 'a' : 'e'}` : 'tutte fatte'}${last ? ' · ultima ' + dShort(last) : ''}</span></div>
-      <div class="bar ${done >= tot && tot ? 'done' : ''}"><i style="width:${tot ? Math.min(100, done / tot * 100).toFixed(1) : 0}%"></i></div>`;
+    const tot = +p.lessons || 0, done = pkgDone(p), bm = pkgByMonth(p);
+    const months = Object.keys(bm).sort().reverse(), shown = months.slice(0, 4);
+    prog = `<div class="pk-row"><span><b class="num">${done}</b> <span class="muted">di</span> <b class="num">${tot}</b> <span class="muted">lezioni</span></span><span class="muted">${tot - done > 0 ? `${tot - done} rimast${tot - done === 1 ? 'a' : 'e'}` : 'tutte fatte'}</span></div>
+      <div class="bar ${done >= tot && tot ? 'done' : ''}"><i style="width:${tot ? Math.min(100, done / tot * 100).toFixed(1) : 0}%"></i></div>
+      <small class="muted">${shown.length ? shown.map(k => `${MESI_B[+k.slice(5) - 1]} ${k.slice(2, 4)}: <b class="num" style="color:var(--fg)">${bm[k]}</b>`).join(' · ') + (months.length > shown.length ? ' · …' : '') + (+p.prevDone ? ` · prima: ${p.prevDone}` : '') : (+p.prevDone ? `Fatte prima: ${p.prevDone}` : 'Nessuna lezione registrata')} <span aria-hidden="true">·</span> <span class="muted">previste ${(+p.perWeek || 0) * 4} al mese</span></small>`;
   } else {
     const today = todayISO(), s0 = new Date(p.startDate + 'T12:00:00'), e0 = new Date(end + 'T12:00:00'), n = new Date(today + 'T12:00:00');
     const f = p.startDate && end ? Math.max(0, Math.min(1, (n - s0) / (e0 - s0 || 1))) : 0, mNow = Math.min(+p.months, Math.max(0, Math.floor(f * +p.months) + (f < 1 && p.startDate <= today ? 1 : 0)));
@@ -903,7 +911,7 @@ function pkgHTML(p) {
     <small class="muted">${p.startDate ? `Dal ${dShort(p.startDate)} al ${dShort(end)}` : 'Data di inizio non indicata'}</small>
     ${prog}
     <div class="pk-row"><span>${pay}</span>${price ? `<span class="muted num">Pagati ${money0(paid)} su ${money0(price)}</span>` : ''}</div>
-    <div class="pk-act">${p.kind === 'pt' ? `<button class="btn small primary" data-act="lesson-add" data-id="${esc(p.id)}">+ Lezione</button>${pkgDone(p) ? `<button class="btn small ghost" data-act="lesson-undo" data-id="${esc(p.id)}" aria-label="Annulla l'ultima lezione">Annulla ultima</button>` : ''}` : ''}${due > 0 ? `<button class="btn small" data-act="pkg-pay" data-id="${esc(p.id)}">Registra pagamento</button>` : ''}<button class="btn small ghost" data-act="edit-pkg" data-id="${esc(p.id)}">Modifica</button></div>
+    <div class="pk-act">${p.kind === 'pt' ? `<button class="btn small" data-act="lessons-month" data-ym="${ymOf(todayISO())}">Lezioni del mese</button><button class="btn small" data-act="lesson-add" data-id="${esc(p.id)}" aria-label="Aggiungi una lezione a questo mese">+1</button>${pkgByMonth(p)[ymOf(todayISO())] ? `<button class="btn small ghost" data-act="lesson-undo" data-id="${esc(p.id)}" aria-label="Togli una lezione da questo mese">−1</button>` : ''}` : ''}${due > 0 ? `<button class="btn small" data-act="pkg-pay" data-id="${esc(p.id)}">Registra pagamento</button>` : ''}<button class="btn small ghost" data-act="edit-pkg" data-id="${esc(p.id)}">Modifica</button></div>
   </div>`;
 }
 function linkOptions(clientId, t) {
@@ -945,18 +953,20 @@ VIEWS.clienti = () => {
   const due = S.packages.reduce((s, p) => s + pkgDue(p), 0) + S.visits.reduce((s, v) => s + visitDue(v), 0), nDue = S.packages.filter(p => pkgDue(p) > 0).length + S.visits.filter(v => visitDue(v) > 0).length;
   const visitsM = S.visits.filter(v => ymOf(v.date) === ym).length;
   const nActiveAll = S.clients.filter(c => clientActive(c.id)).length;
-  const lessonsM = S.packages.reduce((s, p) => s + (p.log || []).filter(d => ymOf(d) === ym).length, 0);
+  const lessonsM = S.packages.reduce((s, p) => s + (+pkgByMonth(p)[ym] || 0), 0);
+  const prevM = addMonths(ym, -1), missing = ptInMonth(prevM).filter(p => pkgByMonth(p)[prevM] == null && p.startDate <= monthBounds(prevM)[1]);
   const expiring = open.filter(p => { const e = pkgEnd(p); return e && e >= today && e <= soon; });
   const f = S.ui.cFilter || 'attivi';
   return `
   <div class="head"><div><div class="eyebrow">Clienti</div><h1>Pacchetti, lezioni e visite</h1></div>
-    <div class="head-actions"><button class="btn" data-act="new-visit">+ Visita</button><button class="btn" data-act="new-pkg">+ Pacchetto</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
+    <div class="head-actions"><button class="btn" data-act="lessons-month" data-ym="${ym}">Lezioni del mese</button><button class="btn" data-act="new-visit">+ Visita</button><button class="btn" data-act="new-pkg">+ Pacchetto</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
   <section class="kpis">
     <div class="kpi"><span class="eyebrow">Clienti attivi</span><span class="v num">${nActiveAll}</span><span class="s">${open.length} pacchett${open.length === 1 ? 'o' : 'i'} in corso</span></div>
     <div class="kpi"><span class="eyebrow">Da incassare</span><span class="v num ${due > 0 ? 'neg' : ''}">${money0(due)}</span><span class="s">${nDue ? `${nDue} tra pacchetti e visite da saldare` : 'Tutto saldato'}</span></div>
     <div class="kpi"><span class="eyebrow">Lezioni a ${MESI[+ym.slice(5) - 1].toLowerCase()}</span><span class="v num">${lessonsM}</span><span class="s">Lezioni PT · ${visitsM} visit${visitsM === 1 ? 'a' : 'e'} nel mese</span></div>
     <div class="kpi"><span class="eyebrow">In scadenza</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · entro 30 giorni' : 'Nessun pacchetto entro 30 giorni'}</span></div>
   </section>
+  ${missing.length ? `<div class="banner"><div><b>Segna le lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}.</b> <span class="muted">Mancano per ${missing.length} pacchett${missing.length === 1 ? 'o' : 'i'} PT: ${esc([...new Set(missing.map(p => byId('clients', p.clientId)?.name || '?'))].slice(0, 3).join(', '))}${missing.length > 3 ? '…' : ''}.</span></div><button class="btn small primary" data-act="lessons-month" data-ym="${prevM}">Segna lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}</button></div>` : ''}
   <div class="cl-tools">
     <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
     <div class="seg" role="group" aria-label="Filtra clienti" style="min-width:min(100%,340px)">${[['attivi', 'In corso'], ['da-saldare', 'Da saldare'], ['tutti', 'Tutti']].map(([v, l]) => `<button type="button" data-act="cfilter" data-v="${v}" aria-pressed="${f === v}">${l}</button>`).join('')}</div>
@@ -1000,7 +1010,7 @@ function pkgForm(p, clientId) {
       { id: 'kind', type: 'seg', label: 'Tipo', value: p.kind, options: [{ v: 'pt', l: 'PT' }, { v: 'coaching', l: 'Coaching' }] },
       [{ id: 'months', label: 'Durata', type: 'select', value: String(p.months), options: monthOpts(p.kind) }, { id: 'perWeek', label: 'Lezioni a settimana', type: 'select', value: String(p.perWeek || 1), options: [{ v: '1', l: '1 a settimana' }, { v: '2', l: '2 a settimana' }] }],
       [{ id: 'lessons', label: 'Lezioni incluse', num: true, value: p.lessons ?? pkgLessons(p.months, p.perWeek), hint: 'Mesi × 4 × lezioni a settimana. Puoi cambiarlo.' }, { id: 'startDate', label: 'Data di inizio', type: 'date', value: p.startDate || todayISO(), required: true }],
-      [{ id: 'price', label: 'Prezzo del pacchetto (€)', num: true, value: p.price ?? '', placeholder: '0,00' }, { id: 'done', label: 'Lezioni già fatte', num: true, value: pkgDone(p), hint: isNew ? 'Se il pacchetto è già iniziato' : 'Modificalo solo per correggere' }],
+      [{ id: 'price', label: 'Prezzo del pacchetto (€)', num: true, value: p.price ?? '', placeholder: '0,00' }, { id: 'done', label: 'Lezioni fatte prima', num: true, value: +p.prevDone || '', placeholder: '0', hint: 'Fatte prima di iniziare a segnarle qui. Le altre si segnano mese per mese.' }],
       { id: 'notes', label: 'Note', value: p.notes || '' }
     ],
     onChange(v, form, ev) {
@@ -1018,10 +1028,8 @@ function pkgForm(p, clientId) {
     },
     async onSubmit(v) {
       const pt = v.kind === 'pt', n = x => { const k = parseNum(x); return Number.isFinite(k) ? k : 0; };
-      let log = [...(p.log || [])].sort();
-      const want = pt ? Math.max(0, Math.round(n(v.done))) : 0;
-      if (pt && want !== log.length) { if (want < log.length) log = log.slice(0, want); else while (log.length < want) log.unshift(v.startDate); }
-      const doc = { ...strip(p), clientId: v.clientId, kind: v.kind, months: +v.months, perWeek: pt ? +v.perWeek : 0, lessons: pt ? Math.round(n(v.lessons)) : 0, startDate: v.startDate, price: Math.round(n(v.price) * 100) / 100, notes: v.notes.trim(), log, createdAt: p.createdAt || Date.now() };
+      const byMonth = pt ? pkgByMonth(p) : {}, prevDone = pt ? Math.max(0, Math.round(n(v.done))) : 0, log = [];
+      const doc = { ...strip(p), byMonth, prevDone, clientId: v.clientId, kind: v.kind, months: +v.months, perWeek: pt ? +v.perWeek : 0, lessons: pt ? Math.round(n(v.lessons)) : 0, startDate: v.startDate, price: Math.round(n(v.price) * 100) / 100, notes: v.notes.trim(), log, createdAt: p.createdAt || Date.now() };
       const ok = await put('packages', p.id || uid(), doc); ok && toast(isNew ? 'Pacchetto aggiunto' : 'Pacchetto aggiornato'); return ok;
     },
     deleteLabel: 'Elimina pacchetto',
@@ -1073,6 +1081,32 @@ function visitPay(v) {
   if (!v) return;
   const catId = VISIT[v.kind].cat;
   txForm(null, { kind: 'entrata', categoryId: cat(catId) ? catId : '', amount: visitDue(v) || '', date: v.date, note: `${VISIT[v.kind].l} · ${byId('clients', v.clientId)?.name || ''}`, scope: 'lavoro', visitId: v.id, clientId: v.clientId });
+}
+function lessonsMonthForm(ym) {
+  ym = ym || ymOf(todayISO());
+  const ps = ptInMonth(ym).sort((a, b) => String(byId('clients', a.clientId)?.name).localeCompare(String(byId('clients', b.clientId)?.name), 'it'));
+  const cur = ymOf(todayISO());
+  openForm({
+    title: 'Lezioni di ' + ymLabel(ym).toLowerCase(),
+    intro: `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="month-nav"><button type="button" class="icon-btn" data-act="lessons-month" data-ym="${addMonths(ym, -1)}" aria-label="Mese precedente">‹</button><span>${ymLabel(ym)}</span><button type="button" class="icon-btn" data-act="lessons-month" data-ym="${addMonths(ym, 1)}" aria-label="Mese successivo" ${ym >= cur ? 'disabled' : ''}>›</button></div></div>
+      <p class="muted" style="margin:0;font-size:.88rem">${ps.length ? 'Scrivi quante lezioni ha fatto ogni cliente in questo mese. Lascia vuoto se non lo sai ancora.' : 'Nessun pacchetto PT attivo in questo mese.'}</p>`,
+    fields: ps.map(p => { const c = byId('clients', p.clientId), done = pkgDone(p), here = pkgByMonth(p)[ym];
+      return { id: 'm_' + p.id, label: `${c?.name || '?'} · ${p.months} mesi, ${p.perWeek} a settimana`, num: true, value: here ?? '', placeholder: `previste ${(+p.perWeek || 0) * 4}`, hint: `Finora ${done} di ${+p.lessons || 0} · rimaste ${Math.max(0, (+p.lessons || 0) - done)}` }; }),
+    validate(v) { for (const p of ps) { const x = v['m_' + p.id]; if (x !== '' && !(parseNum(x) >= 0)) return 'Inserisci numeri validi (0 o più).'; } },
+    async onSubmit(v) {
+      let n = 0;
+      for (const p of ps) {
+        const raw = v['m_' + p.id], old = pkgByMonth(p)[ym];
+        const val = raw === '' ? null : Math.round(parseNum(raw));
+        if (val === (old ?? null)) continue;
+        const doc = pkgWithMonth(p, ym, val || 0);
+        if (val === 0) doc.byMonth[ym] = 0; // 0 esplicito: il mese risulta segnato
+        await put('packages', p.id, doc); n++;
+      }
+      toast(n ? `Lezioni di ${ymLabel(ym).toLowerCase()} salvate` : 'Nessuna modifica');
+      return true;
+    }
+  });
 }
 function pkgPay(p) {
   if (!p) return;
@@ -1841,7 +1875,8 @@ document.addEventListener('click', e => {
   if (a === 'edit-client') return clientForm(byId('clients', id));
   if (a === 'new-pkg') return pkgForm(null, t.dataset.client);
   if (a === 'edit-pkg') return pkgForm(byId('packages', id));
-  if (a === 'lesson-add' || a === 'lesson-undo') { const p = byId('packages', id); if (!p) return; const log = [...(p.log || [])].sort(); if (a === 'lesson-add') log.push(todayISO()); else log.pop(); put('packages', p.id, { ...strip(p), log }); toast(a === 'lesson-add' ? `Lezione registrata (${log.length}/${+p.lessons || '?'})` : 'Ultima lezione annullata'); return; }
+  if (a === 'lesson-add' || a === 'lesson-undo') { const p = byId('packages', id); if (!p) return; const ym = ymOf(todayISO()), n = Math.max(0, (+pkgByMonth(p)[ym] || 0) + (a === 'lesson-add' ? 1 : -1)); put('packages', p.id, pkgWithMonth(p, ym, n)); toast(`${MESI[+ym.slice(5) - 1]}: ${n} lezion${n === 1 ? 'e' : 'i'}`); return; }
+  if (a === 'lessons-month') return lessonsMonthForm(t.dataset.ym);
   if (a === 'pkg-pay') return pkgPay(byId('packages', id));
   if (a === 'new-visit') return visitForm(null, t.dataset.client);
   if (a === 'edit-visit') return visitForm(byId('visits', id));
