@@ -876,7 +876,7 @@ const visitDue = v => Math.max(0, Math.round(((+v.price || 0) - visitPaid(v)) * 
 const clientVisits = id => S.visits.filter(v => v.clientId === id).sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.createdAt || 0) - (a.createdAt || 0));
 const nextCheck = id => clientVisits(id).find(v => v.nextDate)?.nextDate || '';
 const clientDue = id => S.packages.filter(p => p.clientId === id).reduce((s, p) => s + pkgDue(p), 0) + S.visits.filter(v => v.clientId === id).reduce((s, v) => s + visitDue(v), 0);
-const clientActive = id => { const lim = isoOf(new Date(Date.now() - 92 * 864e5)), nc = nextCheck(id); const ps = clientPkgs(id), vs = clientVisits(id); if (!ps.length && !vs.length) return true; return ps.some(pkgOpen) || vs.some(v => v.date >= lim) || (nc && nc >= todayISO()); };
+const clientActive = id => { const lim = isoOf(new Date(Date.now() - 92 * 864e5)), nc = nextCheck(id); const ps = clientPkgs(id), vs = clientVisits(id); if (!ps.length && !vs.length) return true; return ps.some(pkgOpen) || ps.some(toRenew) || vs.some(v => v.date >= lim) || (nc && nc >= todayISO()); };
 function visitRow(v) {
   const due = visitDue(v), price = +v.price || 0;
   return `<button type="button" class="vs-row" data-act="edit-visit" data-id="${esc(v.id)}"><span class="l"><b>${esc(VISIT[v.kind]?.l || 'Visita')}</b><small class="muted">${dShort(v.date)}${v.weight ? ' · ' + String(v.weight).replace('.', ',') + ' kg' : ''}${v.notes ? ' · ' + esc(v.notes) : ''}</small></span>
@@ -890,6 +890,22 @@ function visitsHTML(c) {
     ${shown.map(visitRow).join('')}${vs.length > shown.length ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">Vedi tutte le ${vs.length} visite</button>` : ''}</div>`;
 }
 const clientsSorted = () => [...S.clients].sort((a, b) => String(a.name).localeCompare(String(b.name), 'it'));
+// Rinnovo: proposto quando il pacchetto è finito o sta per finire e il cliente non ne ha già uno successivo.
+const pkgNext = p => S.packages.find(x => x.id !== p.id && x.clientId === p.clientId && x.kind === p.kind && String(x.startDate) > String(p.startDate));
+function pkgCanRenew(p) {
+  if (pkgNext(p)) return false;
+  const st = pkgStatus(p); if (st === 'completato' || st === 'scaduto') return true; if (st === 'futuro') return false;
+  const end = pkgEnd(p), soon = isoOf(new Date(Date.now() + 30 * 864e5));
+  return (end && end <= soon) || (p.kind === 'pt' && (+p.lessons || 0) - pkgDone(p) <= (+p.perWeek || 1) * 4);
+}
+// da rinnovare: rinnovabile e finito da non più di 60 giorni (oltre si considera un cliente che ha smesso)
+const toRenew = p => pkgCanRenew(p) && (!pkgEnd(p) || pkgEnd(p) >= isoOf(new Date(Date.now() - 60 * 864e5)) || pkgStatus(p) === 'completato' && Object.keys(pkgByMonth(p)).sort().pop() >= ymOf(isoOf(new Date(Date.now() - 60 * 864e5))));
+function renewPreset(p) {
+  const today = todayISO(), end = pkgEnd(p), st = pkgStatus(p);
+  let start = today;
+  if (st === 'attivo' && end) { const d = new Date(end + 'T12:00:00'); d.setDate(d.getDate() + 1); start = isoOf(d); }
+  return { kind: p.kind, months: p.months, perWeek: p.perWeek, lessons: p.kind === 'pt' ? pkgLessons(p.months, p.perWeek) : 0, price: p.price, startDate: start, clientId: p.clientId };
+}
 function pkgHTML(p) {
   const st = PKG_STATUS[pkgStatus(p)], paid = pkgPaid(p), due = pkgDue(p), price = +p.price || 0, end = pkgEnd(p);
   let prog;
@@ -911,7 +927,7 @@ function pkgHTML(p) {
     <small class="muted">${p.startDate ? `Dal ${dShort(p.startDate)} al ${dShort(end)}` : 'Data di inizio non indicata'}</small>
     ${prog}
     <div class="pk-row"><span>${pay}</span>${price ? `<span class="muted num">Pagati ${money0(paid)} su ${money0(price)}</span>` : ''}</div>
-    <div class="pk-act">${p.kind === 'pt' ? `<button class="btn small" data-act="lessons-month" data-ym="${ymOf(todayISO())}">Lezioni del mese</button><button class="btn small" data-act="lesson-add" data-id="${esc(p.id)}" aria-label="Aggiungi una lezione a questo mese">+1</button>${pkgByMonth(p)[ymOf(todayISO())] ? `<button class="btn small ghost" data-act="lesson-undo" data-id="${esc(p.id)}" aria-label="Togli una lezione da questo mese">−1</button>` : ''}` : ''}${due > 0 ? `<button class="btn small" data-act="pkg-pay" data-id="${esc(p.id)}">Registra pagamento</button>` : ''}<button class="btn small ghost" data-act="edit-pkg" data-id="${esc(p.id)}">Modifica</button></div>
+    <div class="pk-act">${p.kind === 'pt' ? `<button class="btn small" data-act="lessons-month" data-ym="${ymOf(todayISO())}">Lezioni del mese</button><button class="btn small" data-act="lesson-add" data-id="${esc(p.id)}" aria-label="Aggiungi una lezione a questo mese">+1</button>${pkgByMonth(p)[ymOf(todayISO())] ? `<button class="btn small ghost" data-act="lesson-undo" data-id="${esc(p.id)}" aria-label="Togli una lezione da questo mese">−1</button>` : ''}` : ''}${due > 0 ? `<button class="btn small" data-act="pkg-pay" data-id="${esc(p.id)}">Registra pagamento</button>` : ''}${pkgCanRenew(p) ? `<button class="btn small primary" data-act="renew-pkg" data-id="${esc(p.id)}">Rinnova</button>` : ''}<button class="btn small ghost" data-act="edit-pkg" data-id="${esc(p.id)}">Modifica</button></div>
   </div>`;
 }
 function linkOptions(clientId, t) {
@@ -943,7 +959,8 @@ function clientCards() {
   if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : 'Nessun cliente.'}</p></div>`;
   return list.map(c => { const ps = clientPkgs(c.id);
     return `<article class="cl"><div class="cl-h"><div style="min-width:0"><b>${esc(c.name)}</b><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small>${(() => { const pays = clientPayments(c.id); return pays.length ? `<small class="muted" style="display:block">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'} · incassati <span class="num pos" style="font-weight:600">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</span></small>` : ''; })()}</div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}">Scheda</button></div>
-      ${ps.map(pkgHTML).join('')}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
+      ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
+        return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi nella scheda</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
       <div class="pk-act"><button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button><button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button></div></article>`; }).join('');
 }
 VIEWS.clienti = () => {
@@ -955,7 +972,7 @@ VIEWS.clienti = () => {
   const nActiveAll = S.clients.filter(c => clientActive(c.id)).length;
   const lessonsM = S.packages.reduce((s, p) => s + (+pkgByMonth(p)[ym] || 0), 0);
   const prevM = addMonths(ym, -1), missing = ptInMonth(prevM).filter(p => pkgByMonth(p)[prevM] == null && p.startDate <= monthBounds(prevM)[1]);
-  const expiring = open.filter(p => { const e = pkgEnd(p); return e && e >= today && e <= soon; });
+  const expiring = S.packages.filter(toRenew);
   const f = S.ui.cFilter || 'attivi';
   return `
   <div class="head"><div><div class="eyebrow">Clienti</div><h1>Pacchetti, lezioni e visite</h1></div>
@@ -964,7 +981,7 @@ VIEWS.clienti = () => {
     <div class="kpi"><span class="eyebrow">Clienti attivi</span><span class="v num">${nActiveAll}</span><span class="s">${open.length} pacchett${open.length === 1 ? 'o' : 'i'} in corso</span></div>
     <div class="kpi"><span class="eyebrow">Da incassare</span><span class="v num ${due > 0 ? 'neg' : ''}">${money0(due)}</span><span class="s">${nDue ? `${nDue} tra pacchetti e visite da saldare` : 'Tutto saldato'}</span></div>
     <div class="kpi"><span class="eyebrow">Lezioni a ${MESI[+ym.slice(5) - 1].toLowerCase()}</span><span class="v num">${lessonsM}</span><span class="s">Lezioni PT · ${visitsM} visit${visitsM === 1 ? 'a' : 'e'} nel mese</span></div>
-    <div class="kpi"><span class="eyebrow">In scadenza</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · entro 30 giorni' : 'Nessun pacchetto entro 30 giorni'}</span></div>
+    <div class="kpi"><span class="eyebrow">Da rinnovare</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · finiti o in scadenza' : 'Nessun pacchetto in scadenza'}</span></div>
   </section>
   ${missing.length ? `<div class="banner"><div><b>Segna le lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}.</b> <span class="muted">Mancano per ${missing.length} pacchett${missing.length === 1 ? 'o' : 'i'} PT: ${esc([...new Set(missing.map(p => byId('clients', p.clientId)?.name || '?'))].slice(0, 3).join(', '))}${missing.length > 3 ? '…' : ''}.</span></div><button class="btn small primary" data-act="lessons-month" data-ym="${prevM}">Segna lezioni di ${MESI[+prevM.slice(5) - 1].toLowerCase()}</button></div>` : ''}
   <div class="cl-tools">
@@ -980,7 +997,9 @@ function clientForm(c) {
     title: isNew ? 'Nuovo cliente' : c.name,
     intro: (() => { const pays = isNew ? [] : clientPayments(c.id); let h = '';
       if (pays.length) h += `<div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Storico pagamenti</b><span class="muted">${pays.length} · totale <b class="num pos">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</b></span></div>${pays.map(payRow).join('')}</div>`;
-      if (vs.length) h += `<div class="vs" style="${pays.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico visite</b><span class="muted">${vs.length}</span></div>${vs.map(visitRow).join('')}</div>`;
+      const pks = isNew ? [] : clientPkgs(c.id);
+      if (pks.length) h += `<div class="vs" style="${pays.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico pacchetti</b><span class="muted">${pks.length}</span></div>${pks.map(p => `<button type="button" class="vs-row" data-act="edit-pkg" data-id="${esc(p.id)}"><span class="l"><b>${esc(pkgLabel(p))}</b><small class="muted">${p.startDate ? dShort(p.startDate) + ' → ' + dShort(pkgEnd(p)) : ''}${p.kind === 'pt' ? ` · ${pkgDone(p)}/${+p.lessons || 0} lezioni` : ''}</small></span><span>${+p.price ? (pkgDue(p) > 0 ? `<span class="pill neg num">Da saldare ${money0(pkgDue(p))}</span>` : `<span class="pill pos">Saldato</span>`) : ''} <span class="pill ${PKG_STATUS[pkgStatus(p)].c}">${PKG_STATUS[pkgStatus(p)].l}</span></span></button>`).join('')}</div>`;
+      if (vs.length) h += `<div class="vs" style="${pays.length || pks.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico visite</b><span class="muted">${vs.length}</span></div>${vs.map(visitRow).join('')}</div>`;
       return h ? h + '<div class="form-h">Dati del cliente</div>' : ''; })(),
     fields: [
       { id: 'name', label: 'Nome e cognome', value: c.name || '', required: true },
@@ -998,13 +1017,15 @@ function clientForm(c) {
     onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); vs.forEach(v => del('visits', v.id)); const ok = await del('clients', c.id); ok && toast(ps.length || vs.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
   });
 }
-function pkgForm(p, clientId) {
+function pkgForm(p, clientId, preset) {
   const isNew = !p;
   if (!S.clients.length) { toast('Aggiungi prima un cliente.', true); return; }
-  p = p || { kind: 'pt', months: 3, perWeek: 1, startDate: todayISO(), clientId: clientId || clientsSorted()[0].id };
+  const renewing = !p && !!preset;
+  p = p || preset || { kind: 'pt', months: 3, perWeek: 1, startDate: todayISO(), clientId: clientId || clientsSorted()[0].id };
   const monthOpts = k => PKG_MONTHS[k].map(m => ({ v: String(m), l: m + ' mesi' }));
   openForm({
-    title: isNew ? 'Nuovo pacchetto' : 'Modifica pacchetto',
+    title: renewing ? 'Rinnova pacchetto' : isNew ? 'Nuovo pacchetto' : 'Modifica pacchetto',
+    intro: renewing ? `<p class="muted" style="margin:0;font-size:.88rem">Nuovo pacchetto per <b>${esc(byId('clients', p.clientId)?.name || '')}</b>, con gli stessi dati del precedente. Il pacchetto precedente resta nello storico con le sue lezioni e i suoi pagamenti. Cambia quello che serve.</p>` : '',
     fields: [
       { id: 'clientId', label: 'Cliente', type: 'select', value: p.clientId, options: clientsSorted().map(c => ({ v: c.id, l: c.name })) },
       { id: 'kind', type: 'seg', label: 'Tipo', value: p.kind, options: [{ v: 'pt', l: 'PT' }, { v: 'coaching', l: 'Coaching' }] },
@@ -1874,6 +1895,7 @@ document.addEventListener('click', e => {
   if (a === 'new-client') return clientForm();
   if (a === 'edit-client') return clientForm(byId('clients', id));
   if (a === 'new-pkg') return pkgForm(null, t.dataset.client);
+  if (a === 'renew-pkg') { const p = byId('packages', id); return p && pkgForm(null, p.clientId, renewPreset(p)); }
   if (a === 'edit-pkg') return pkgForm(byId('packages', id));
   if (a === 'lesson-add' || a === 'lesson-undo') { const p = byId('packages', id); if (!p) return; const ym = ymOf(todayISO()), n = Math.max(0, (+pkgByMonth(p)[ym] || 0) + (a === 'lesson-add' ? 1 : -1)); put('packages', p.id, pkgWithMonth(p, ym, n)); toast(`${MESI[+ym.slice(5) - 1]}: ${n} lezion${n === 1 ? 'e' : 'i'}`); return; }
   if (a === 'lessons-month') return lessonsMonthForm(t.dataset.ym);
