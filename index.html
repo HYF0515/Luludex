@@ -153,6 +153,10 @@ a.btn{color:inherit;text-decoration:none}
 .cl-h small{color:var(--muted);overflow-wrap:anywhere}
 .pk{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}
 .pk.ended{opacity:.62}
+.vs{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
+.vs-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:.88rem;padding:6px 8px;margin:0 -8px;border-radius:8px;cursor:pointer;border:0;background:none;text-align:left;color:inherit;font:inherit;width:calc(100% + 16px)}
+.vs-row:hover,.vs-row:focus-visible{background:var(--surface-2)}
+.vs-row .l{display:flex;flex-direction:column;min-width:0}
 .pk-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .pk-row{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:.88rem}
 .pk-act{display:flex;gap:6px;flex-wrap:wrap}
@@ -333,7 +337,7 @@ function nextDate(iso, f) {
 }
 
 /* ---------- stato ---------- */
-const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages'];
+const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages', 'visits'];
 const S = { fs: null, user: null, synced: false, status: 'loading', settings: {},
   ui: { budgetMode: 'mese', budgetYear: todayISO().slice(0, 4), year: todayISO().slice(0, 4), month: ymOf(todayISO()), q: '', fAcc: '', fCat: '', fKind: '', budgetMonth: ymOf(todayISO()), scope: (() => { try { return localStorage.getItem('luludex.scope') || 'tutto'; } catch (e) { return 'tutto'; } })(), cFilter: 'attivi', cq: '' } };
 COLS.forEach(c => S[c] = []);
@@ -860,6 +864,25 @@ const pkgStatus = p => { const today = todayISO(), end = pkgEnd(p); if (p.kind =
 const pkgOpen = p => ['attivo', 'futuro'].includes(pkgStatus(p));
 const pkgLabel = p => p.kind === 'coaching' ? `Coaching ${p.months} mesi` : `PT ${p.months} mesi · ${p.perWeek} a settimana`;
 const clientPkgs = id => S.packages.filter(p => p.clientId === id).sort((a, b) => (pkgOpen(b) - pkgOpen(a)) || String(b.startDate).localeCompare(String(a.startDate)));
+const VISIT = { prima: { l: 'Prima visita', cat: 'c-prima-visita' }, controllo: { l: 'Visita di controllo', cat: 'c-visita-ctrl' } };
+const visitPaid = v => S.transactions.filter(t => t.visitId === v.id && t.kind === 'entrata').reduce((s, t) => s + (+t.amount || 0), 0);
+const visitDue = v => Math.max(0, Math.round(((+v.price || 0) - visitPaid(v)) * 100) / 100);
+const clientVisits = id => S.visits.filter(v => v.clientId === id).sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.createdAt || 0) - (a.createdAt || 0));
+const nextCheck = id => clientVisits(id).find(v => v.nextDate)?.nextDate || '';
+const clientDue = id => S.packages.filter(p => p.clientId === id).reduce((s, p) => s + pkgDue(p), 0) + S.visits.filter(v => v.clientId === id).reduce((s, v) => s + visitDue(v), 0);
+const clientActive = id => { const lim = isoOf(new Date(Date.now() - 92 * 864e5)), nc = nextCheck(id); const ps = clientPkgs(id), vs = clientVisits(id); if (!ps.length && !vs.length) return true; return ps.some(pkgOpen) || vs.some(v => v.date >= lim) || (nc && nc >= todayISO()); };
+function visitRow(v) {
+  const due = visitDue(v), price = +v.price || 0;
+  return `<button type="button" class="vs-row" data-act="edit-visit" data-id="${esc(v.id)}"><span class="l"><b>${esc(VISIT[v.kind]?.l || 'Visita')}</b><small class="muted">${dShort(v.date)}${v.weight ? ' · ' + String(v.weight).replace('.', ',') + ' kg' : ''}${v.notes ? ' · ' + esc(v.notes) : ''}</small></span>
+    <span>${price ? (due > 0 ? `<span class="pill neg num">Da saldare ${money0(due)}</span>` : `<span class="pill pos num">${money0(price)} · pagata</span>`) : '<span class="pill">Senza prezzo</span>'}</span></button>`;
+}
+function visitsHTML(c) {
+  const vs = clientVisits(c.id), nc = nextCheck(c.id), today = todayISO();
+  if (!vs.length) return '';
+  const shown = vs.slice(0, 3);
+  return `<div class="vs"><div class="pk-row"><b>Visite</b><span class="muted">${vs.length} in totale${nc ? ` · <span class="${nc < today ? 'neg' : ''}">prossimo controllo ${dShort(nc)}</span>` : ''}</span></div>
+    ${shown.map(visitRow).join('')}${vs.length > shown.length ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">Vedi tutte le ${vs.length} visite</button>` : ''}</div>`;
+}
 const clientsSorted = () => [...S.clients].sort((a, b) => String(a.name).localeCompare(String(b.name), 'it'));
 function pkgHTML(p) {
   const st = PKG_STATUS[pkgStatus(p)], paid = pkgPaid(p), due = pkgDue(p), price = +p.price || 0, end = pkgEnd(p);
@@ -886,43 +909,46 @@ function pkgHTML(p) {
 function clientCards() {
   const f = S.ui.cFilter || 'attivi', q = (S.ui.cq || '').trim().toLowerCase();
   let list = clientsSorted();
-  if (f === 'attivi') list = list.filter(c => clientPkgs(c.id).some(pkgOpen));
-  if (f === 'da-saldare') list = list.filter(c => clientPkgs(c.id).some(p => pkgDue(p) > 0));
+  if (f === 'attivi') list = list.filter(c => clientActive(c.id));
+  if (f === 'da-saldare') list = list.filter(c => clientDue(c.id) > 0);
   if (q) list = list.filter(c => [c.name, c.phone, c.email, c.notes].join(' ').toLowerCase().includes(q));
-  if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : 'Nessun cliente.'}</p></div>`;
+  if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : 'Nessun cliente.'}</p></div>`;
   return list.map(c => { const ps = clientPkgs(c.id);
     return `<article class="cl"><div class="cl-h"><div style="min-width:0"><b>${esc(c.name)}</b><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small></div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}">Scheda</button></div>
-      ${ps.length ? ps.map(pkgHTML).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto.</p>'}
-      <button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}" style="align-self:flex-start">+ Pacchetto</button></article>`; }).join('');
+      ${ps.map(pkgHTML).join('')}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
+      <div class="pk-act"><button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button><button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button></div></article>`; }).join('');
 }
 VIEWS.clienti = () => {
   const today = todayISO(), ym = ymOf(today), soon = isoOf(new Date(Date.now() + 30 * 864e5));
   const open = S.packages.filter(pkgOpen);
   const nActive = new Set(open.map(p => p.clientId)).size;
-  const due = S.packages.reduce((s, p) => s + pkgDue(p), 0), nDue = S.packages.filter(p => pkgDue(p) > 0).length;
+  const due = S.packages.reduce((s, p) => s + pkgDue(p), 0) + S.visits.reduce((s, v) => s + visitDue(v), 0), nDue = S.packages.filter(p => pkgDue(p) > 0).length + S.visits.filter(v => visitDue(v) > 0).length;
+  const visitsM = S.visits.filter(v => ymOf(v.date) === ym).length;
+  const nActiveAll = S.clients.filter(c => clientActive(c.id)).length;
   const lessonsM = S.packages.reduce((s, p) => s + (p.log || []).filter(d => ymOf(d) === ym).length, 0);
   const expiring = open.filter(p => { const e = pkgEnd(p); return e && e >= today && e <= soon; });
   const f = S.ui.cFilter || 'attivi';
   return `
-  <div class="head"><div><div class="eyebrow">Clienti</div><h1>Pacchetti e lezioni</h1></div>
-    <div class="head-actions"><button class="btn" data-act="new-pkg">+ Pacchetto</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
+  <div class="head"><div><div class="eyebrow">Clienti</div><h1>Pacchetti, lezioni e visite</h1></div>
+    <div class="head-actions"><button class="btn" data-act="new-visit">+ Visita</button><button class="btn" data-act="new-pkg">+ Pacchetto</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
   <section class="kpis">
-    <div class="kpi"><span class="eyebrow">Clienti attivi</span><span class="v num">${nActive}</span><span class="s">${open.length} pacchett${open.length === 1 ? 'o' : 'i'} in corso</span></div>
-    <div class="kpi"><span class="eyebrow">Da incassare</span><span class="v num ${due > 0 ? 'neg' : ''}">${money0(due)}</span><span class="s">${nDue ? `${nDue} pacchett${nDue === 1 ? 'o' : 'i'} da saldare` : 'Tutto saldato'}</span></div>
-    <div class="kpi"><span class="eyebrow">Lezioni a ${MESI[+ym.slice(5) - 1].toLowerCase()}</span><span class="v num">${lessonsM}</span><span class="s">Lezioni PT registrate nel mese</span></div>
+    <div class="kpi"><span class="eyebrow">Clienti attivi</span><span class="v num">${nActiveAll}</span><span class="s">${open.length} pacchett${open.length === 1 ? 'o' : 'i'} in corso</span></div>
+    <div class="kpi"><span class="eyebrow">Da incassare</span><span class="v num ${due > 0 ? 'neg' : ''}">${money0(due)}</span><span class="s">${nDue ? `${nDue} tra pacchetti e visite da saldare` : 'Tutto saldato'}</span></div>
+    <div class="kpi"><span class="eyebrow">Lezioni a ${MESI[+ym.slice(5) - 1].toLowerCase()}</span><span class="v num">${lessonsM}</span><span class="s">Lezioni PT · ${visitsM} visit${visitsM === 1 ? 'a' : 'e'} nel mese</span></div>
     <div class="kpi"><span class="eyebrow">In scadenza</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · entro 30 giorni' : 'Nessun pacchetto entro 30 giorni'}</span></div>
   </section>
   <div class="cl-tools">
     <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
     <div class="seg" role="group" aria-label="Filtra clienti" style="min-width:min(100%,340px)">${[['attivi', 'In corso'], ['da-saldare', 'Da saldare'], ['tutti', 'Tutti']].map(([v, l]) => `<button type="button" data-act="cfilter" data-v="${v}" aria-pressed="${f === v}">${l}</button>`).join('')}</div>
   </div>
-  ${S.clients.length ? `<div class="cl-list" id="cl-list">${clientCards()}</div>` : `<section class="panel"><div class="empty"><p>Qui tieni traccia dei clienti: pacchetti PT e Coaching, lezioni fatte e pagamenti.</p><button class="btn primary" data-act="new-client">Aggiungi il primo cliente</button></div></section>`}`;
+  ${S.clients.length ? `<div class="cl-list" id="cl-list">${clientCards()}</div>` : `<section class="panel"><div class="empty"><p>Qui tieni traccia dei clienti: pacchetti PT e Coaching, lezioni fatte, visite nutrizionali e pagamenti.</p><button class="btn primary" data-act="new-client">Aggiungi il primo cliente</button></div></section>`}`;
 };
 function clientForm(c) {
   const isNew = !c; c = c || {};
-  const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id);
+  const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id), vs = isNew ? [] : clientVisits(c.id);
   openForm({
     title: isNew ? 'Nuovo cliente' : c.name,
+    intro: vs.length ? `<div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Storico visite</b><span class="muted">${vs.length} · pagati ${money0(vs.reduce((s, v) => s + visitPaid(v), 0))}</span></div>${vs.map(visitRow).join('')}</div><div class="form-h">Dati del cliente</div>` : '',
     fields: [
       { id: 'name', label: 'Nome e cognome', value: c.name || '', required: true },
       [{ id: 'phone', label: 'Telefono', type: 'tel', value: c.phone || '' }, { id: 'email', label: 'Email', type: 'email', value: c.email || '' }],
@@ -935,8 +961,8 @@ function clientForm(c) {
       if (ok) { toast(isNew ? 'Cliente aggiunto' : 'Cliente aggiornato'); if (isNew) setTimeout(() => pkgForm(null, id), 50); }
       return ok;
     },
-    deleteLabel: ps.length ? 'Elimina cliente e pacchetti' : 'Elimina cliente',
-    onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); const ok = await del('clients', c.id); ok && toast(ps.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
+    deleteLabel: ps.length || vs.length ? 'Elimina cliente, pacchetti e visite' : 'Elimina cliente',
+    onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); vs.forEach(v => del('visits', v.id)); const ok = await del('clients', c.id); ok && toast(ps.length || vs.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
   });
 }
 function pkgForm(p, clientId) {
@@ -978,6 +1004,52 @@ function pkgForm(p, clientId) {
     deleteLabel: 'Elimina pacchetto',
     onDelete: isNew ? null : async () => { const ok = await del('packages', p.id); ok && toast('Pacchetto eliminato. I pagamenti restano tra le entrate.'); return ok; }
   });
+}
+function visitForm(v, clientId) {
+  const isNew = !v;
+  if (!S.clients.length) { toast('Aggiungi prima un cliente.', true); return; }
+  const accs = accOptions();
+  const prevVisits = clientId ? clientVisits(clientId) : [];
+  v = v || { kind: prevVisits.length ? 'controllo' : 'prima', date: todayISO(), clientId: clientId || clientsSorted()[0].id, price: prevVisits.find(x => x.kind === 'controllo')?.price ?? '' };
+  const linked = !isNew && S.transactions.some(t => t.visitId === v.id);
+  openForm({
+    title: isNew ? 'Nuova visita' : VISIT[v.kind].l,
+    fields: [
+      { id: 'clientId', label: 'Cliente', type: 'select', value: v.clientId, options: clientsSorted().map(c => ({ v: c.id, l: c.name })) },
+      { id: 'kind', type: 'seg', label: 'Tipo', value: v.kind, options: [{ v: 'prima', l: 'Prima visita' }, { v: 'controllo', l: 'Visita di controllo' }] },
+      [{ id: 'date', label: 'Data', type: 'date', value: v.date, required: true }, { id: 'price', label: 'Prezzo (€)', num: true, value: v.price ?? '', placeholder: '0,00' }],
+      ...(isNew ? [{ id: 'paidNow', label: 'Pagata subito: registro l\'entrata', type: 'checkbox', value: true }, { id: 'accountId', label: 'Incassata sul conto', type: 'select', value: accs[0]?.v || '', options: accs.length ? accs : [{ v: '', l: 'Nessun conto: creane uno in Impostazioni' }] }] : []),
+      [{ id: 'nextDate', label: 'Prossimo controllo (facoltativo)', type: 'date', value: v.nextDate || '' }, { id: 'weight', label: 'Peso (kg, facoltativo)', num: true, value: v.weight ?? '' }],
+      { id: 'notes', label: 'Note', value: v.notes || '', placeholder: 'Es. piano alimentare aggiornato' }
+    ],
+    intro: !isNew ? `<p class="muted" style="margin:0;font-size:.88rem">${+v.price ? (visitDue(v) > 0 ? `Pagati ${money0(visitPaid(v))} su ${money0(+v.price)}.` : 'Visita pagata.') : 'Prezzo non indicato.'}${visitDue(v) > 0 ? ' <button type="button" class="btn small" data-act="visit-pay" data-id="' + esc(v.id) + '">Registra pagamento</button>' : ''}</p>` : '',
+    onChange(x, form) { if (isNew) showField(form, 'accountId', !!x.paidNow); },
+    validate(x) {
+      if (!x.date) return 'Indica la data della visita.';
+      if (x.price && !(parseNum(x.price) >= 0)) return 'Il prezzo non è un numero valido.';
+      if (isNew && x.paidNow && parseNum(x.price) > 0 && !x.accountId) return 'Crea prima un conto in Impostazioni per registrare l\'incasso.';
+      if (x.nextDate && x.nextDate < x.date) return 'Il prossimo controllo deve essere dopo la visita.';
+    },
+    async onSubmit(x) {
+      const n = k => { const r = parseNum(k); return Number.isFinite(r) ? Math.round(r * 100) / 100 : null; };
+      const id = v.id || uid(), price = n(x.price) || 0;
+      const doc = { ...strip(v), clientId: x.clientId, kind: x.kind, date: x.date, price, nextDate: x.nextDate || '', weight: n(x.weight), notes: x.notes.trim(), createdAt: v.createdAt || Date.now() };
+      const ok = await put('visits', id, doc);
+      if (ok && isNew && x.paidNow && price > 0) {
+        const catId = VISIT[x.kind].cat;
+        await put('transactions', uid(), { kind: 'entrata', amount: price, date: x.date, note: `${VISIT[x.kind].l} · ${byId('clients', x.clientId)?.name || ''}`, accountId: x.accountId, categoryId: cat(catId) ? catId : '', scope: 'lavoro', visitId: id, clientId: x.clientId, createdAt: Date.now() });
+      }
+      ok && toast(isNew ? (x.paidNow && price > 0 ? 'Visita registrata e incasso aggiunto' : 'Visita registrata') : 'Visita aggiornata');
+      return ok;
+    },
+    deleteLabel: 'Elimina visita',
+    onDelete: isNew ? null : async () => { const ok = await del('visits', v.id); ok && toast(linked ? 'Visita eliminata. Il pagamento resta tra le entrate.' : 'Visita eliminata'); return ok; }
+  });
+}
+function visitPay(v) {
+  if (!v) return;
+  const catId = VISIT[v.kind].cat;
+  txForm(null, { kind: 'entrata', categoryId: cat(catId) ? catId : '', amount: visitDue(v) || '', date: v.date, note: `${VISIT[v.kind].l} · ${byId('clients', v.clientId)?.name || ''}`, scope: 'lavoro', visitId: v.id, clientId: v.clientId });
 }
 function pkgPay(p) {
   if (!p) return;
@@ -1346,6 +1418,7 @@ function txForm(t, preset) {
       if (v.currency !== BASE) { doc.currency = v.currency; doc.origAmount = orig; doc.rate = rate; }
       if (v.kind !== 'giroconto') doc.scope = v.scope || 'personale';
       if (t.packageId) { doc.packageId = t.packageId; doc.clientId = t.clientId || ''; }
+      if (t.visitId) { doc.visitId = t.visitId; doc.clientId = t.clientId || ''; }
       if (t.importKey) doc.importKey = t.importKey;
       if (t.demo) doc.demo = true;
       const ok = await put('transactions', t.id || uid(), doc);
@@ -1520,6 +1593,8 @@ async function exportXLSX() {
   add('Categorie', cats, { 'Nome': '' });
   const pk = S.packages.map(p => ({ 'Cliente': byId('clients', p.clientId)?.name || '', 'Pacchetto': pkgLabel(p), 'Inizio': d(p.startDate), 'Fine': d(pkgEnd(p)), 'Lezioni fatte': p.kind === 'pt' ? pkgDone(p) : '', 'Lezioni totali': p.kind === 'pt' ? +p.lessons || 0 : '', 'Prezzo (€)': r2(p.price), 'Pagato (€)': r2(pkgPaid(p)), 'Da saldare (€)': r2(pkgDue(p)), 'Stato': PKG_STATUS[pkgStatus(p)].l }));
   if (pk.length) add('Clienti', pk, { 'Cliente': '' });
+  const vis = [...S.visits].sort((a, b) => String(a.date).localeCompare(String(b.date))).map(v => ({ 'Data': d(v.date), 'Cliente': byId('clients', v.clientId)?.name || '', 'Tipo': VISIT[v.kind]?.l || '', 'Prezzo (€)': r2(v.price), 'Pagato (€)': r2(visitPaid(v)), 'Da saldare (€)': r2(visitDue(v)), 'Peso (kg)': v.weight ?? '', 'Prossimo controllo': d(v.nextDate), 'Note': v.notes || '' }));
+  if (vis.length) add('Visite', vis, { 'Data': '' });
   if (inv.length) add('Investimenti', inv, { 'Nome': '' });
   const buf = X.write(wb, { bookType: 'xlsx', type: 'array', cellDates: true });
   if (await saveFile(`luludex-${todayISO()}.xlsx`, buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) toast('File Excel esportato');
@@ -1730,6 +1805,9 @@ document.addEventListener('click', e => {
   if (a === 'edit-pkg') return pkgForm(byId('packages', id));
   if (a === 'lesson-add' || a === 'lesson-undo') { const p = byId('packages', id); if (!p) return; const log = [...(p.log || [])].sort(); if (a === 'lesson-add') log.push(todayISO()); else log.pop(); put('packages', p.id, { ...strip(p), log }); toast(a === 'lesson-add' ? `Lezione registrata (${log.length}/${+p.lessons || '?'})` : 'Ultima lezione annullata'); return; }
   if (a === 'pkg-pay') return pkgPay(byId('packages', id));
+  if (a === 'new-visit') return visitForm(null, t.dataset.client);
+  if (a === 'edit-visit') return visitForm(byId('visits', id));
+  if (a === 'visit-pay') return visitPay(byId('visits', id));
   if (a === 'cfilter') { S.ui.cFilter = t.dataset.v; render(); return; }
   if (a === 'budget-mode') { S.ui.budgetMode = t.dataset.v; render(); return; }
   if (a === 'ykey') { S.ui[t.dataset.key] = String(+S.ui[t.dataset.key] + +t.dataset.d); render(); return; }

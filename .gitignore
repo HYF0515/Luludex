@@ -1,1 +1,3 @@
 dist/
+*.png
+!icons/*.png
