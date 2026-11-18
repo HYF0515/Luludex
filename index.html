@@ -482,7 +482,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '11'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '12'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2832,35 +2832,7 @@ document.addEventListener('submit', e => {
   if (e.target.id === 'setup-form') { e.preventDefault(); setupSubmit(); }
   if (e.target.id === 'auth-form') { e.preventDefault(); authSubmit('login'); }
 });
-let slideDir = 0;
-window.addEventListener('hashchange', () => {
-  window.scrollTo(0, 0); render();
-  if (slideDir && !matchMedia('(prefers-reduced-motion: reduce)').matches && $('#view').animate) $('#view').animate([{ transform: `translateX(${slideDir * 40}px)`, opacity: 0.3 }, { transform: 'none', opacity: 1 }], { duration: 230, easing: 'cubic-bezier(.2,.7,.3,1)' });
-  slideDir = 0;
-});
-// Scorri col dito a destra/sinistra per passare alla sezione precedente/successiva
-(() => {
-  let x0 = 0, y0 = 0, t0 = 0, ok = false;
-  const blocked = n => { for (; n && n !== document.body; n = n.parentElement) {
-    if (n.matches && n.matches('input,select,textarea,.nav,.side,.modal,[data-noswipe]')) return true;
-    if (n.scrollWidth > n.clientWidth + 2) { const ox = getComputedStyle(n).overflowX; if (ox === 'auto' || ox === 'scroll') return true; }
-  } return false; };
-  document.addEventListener('touchstart', e => {
-    ok = false;
-    if (e.touches.length !== 1 || document.body.classList.contains('locked') || !$('#modal').hidden) return;
-    const p = e.touches[0]; if (p.clientX < 18 || p.clientX > innerWidth - 18 || blocked(e.target)) return;
-    x0 = p.clientX; y0 = p.clientY; t0 = Date.now(); ok = true;
-  }, { passive: true });
-  document.addEventListener('touchmove', e => { if (ok && e.touches.length > 1) ok = false; }, { passive: true });
-  document.addEventListener('touchend', e => {
-    if (!ok) return; ok = false;
-    const p = e.changedTouches[0], dx = p.clientX - x0, dy = p.clientY - y0;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.7 || Date.now() - t0 > 800) return;
-    const order = Object.keys(ROUTES), i = order.indexOf(route()), j = i + (dx > 0 ? 1 : -1);
-    if (j < 0 || j >= order.length) return;
-    slideDir = dx > 0 ? -1 : 1; location.hash = order[j];
-  }, { passive: true });
-})();
+window.addEventListener('hashchange', () => { window.scrollTo(0, 0); render(); });
 let rT; window.addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => { drawCharts(); renderNav(); }, 150); });
 window.addEventListener('online', () => { netDown = false; updateSync(); });
 window.addEventListener('offline', () => { netDown = true; updateSync(); schedule(); });
