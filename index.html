@@ -482,7 +482,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '10'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '11'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2677,7 +2677,7 @@ function restore(file) {
 async function deleteDemo(btn) {
   if (!btn.classList.contains('armed')) { btn.classList.add('armed'); btn.textContent = 'Conferma: elimina gli esempi'; return; }
   COLS.forEach(c => S[c].filter(x => x.demo).forEach(x => del(c, x.id)));
-  if (S.settings.demo) { const s = { ...S.settings }; delete s.demo; s.budgets = {}; s.rules = []; put('settings', 'main', s); }
+  if (S.settings.demo) { const s = { ...S.settings }; delete s.demo; s.budgets = {}; s.budgetsMonth = {}; s.targets = {}; s.rules = []; put('settings', 'main', s); }
   toast('Dati di esempio eliminati.');
 }
 
@@ -3012,8 +3012,86 @@ function startSession(user) {
 }
 
 /* ---------- avvio ---------- */
+// Dati di esempio (finti): usati solo nella versione Artifact (window.LULUDEX_DEMO), quando non ci sono ancora dati.
+// Tutto è marcato "demo": il riquadro in alto permette di eliminarli in un tocco.
+function demoData() {
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const today = todayISO(), ym0 = ymOf(today), D = n => isoOf(new Date(Date.now() - n * 864e5));
+  const dayIn = (ym, d) => { const last = new Date(+ym.slice(0, 4), +ym.slice(5), 0).getDate(), x = ym + '-' + pad(Math.min(d, last)); return x > today ? today : x; };
+  const months = Array.from({ length: 6 }, (_, i) => addMonths(ym0, i - 5));
+  const o = { accounts: {}, clients: {}, packages: {}, visits: {}, transactions: {}, holdings: {}, goals: {} }, demo = { demo: true };
+  let n = 0; const tx = d => { o.transactions['dt' + (++n)] = { ...d, createdAt: Date.now() - n, ...demo }; return 'dt' + n; };
+  o.accounts.dl = { name: 'Conto lavoro', type: 'conto', currency: 'EUR', openingBalance: 4200, order: 0, ...demo };
+  o.accounts.dp = { name: 'Conto personale', type: 'conto', currency: 'EUR', openingBalance: 2600, order: 1, ...demo };
+  o.accounts.dc = { name: 'Contanti', type: 'contanti', currency: 'EUR', openingBalance: 150, order: 2, ...demo };
+  o.accounts.dt = { name: 'Conto titoli', type: 'investimenti', currency: 'EUR', openingBalance: 0, order: 3, ...demo };
+  const names = ['Marco Bianchi', 'Giulia Romano', 'Luca Ferri', 'Sara Colombo', 'Davide Ricci', 'Elena Marino', 'Andrea Greco', 'Chiara Gallo', 'Matteo Conti'];
+  names.forEach((nm, i) => { o.clients['dk' + i] = { name: nm, phone: '333 ' + String(1000000 + i * 137531).slice(0, 7), email: nm.toLowerCase().replace(' ', '.') + '@esempio.it', createdAt: Date.now() - i, ...demo }; });
+  const startM = k => addMonths(ym0, -k) + '-' + pad(3 + k);
+  const lessonsBy = (start, perWeek, upTo) => { const m = {}; for (const ym of months) { if (ym < start.slice(0, 7)) continue; if (upTo && ym > upTo) break; const v = ym === ym0 ? Math.max(1, Math.round(perWeek * 4 * (+today.slice(8) / 30))) : perWeek * 4 - (rnd() < .35 ? 1 : 0); m[ym] = v; } return m; };
+  // [cliente, tipo, mesi, lezioni/sett, mesi fa inizio, prezzo, pagamento: tutto | metà | rate mensili | acconto questo mese]
+  const P = [[0, 'pt', 3, 2, 2, 690, 'tutto'], [1, 'pt', 6, 1, 3, 620, 'meta'], [2, 'coaching', 12, 0, 5, 1200, 'rate'], [3, 'pt', 3, 1, 2, 360, 'tutto'], [4, 'pt', 6, 2, 4, 1150, 'rate'], [5, 'coaching', 6, 0, 5, 650, 'meta'], [6, 'pt', 3, 2, 1, 690, 'acconto'], [8, 'pt', 3, 2, 0, 690, 'tutto']];
+  P.forEach(([ci, kind, mo, pw, ago, price, how], i) => {
+    const start = startM(ago), lessons = kind === 'pt' ? mo * 4 * pw : 0;
+    const pk = { clientId: 'dk' + ci, kind, months: mo, perWeek: pw, lessons, startDate: start, price, byMonth: kind === 'pt' ? lessonsBy(start, pw) : {}, log: [], createdAt: Date.now() - i, ...demo };
+    if (kind === 'pt') { let tot = Object.values(pk.byMonth).reduce((a, b) => a + b, 0); if (ci === 0) { pk.byMonth[ym0] = Math.max(0, (pk.byMonth[ym0] || 0) + (lessons - 2 - tot)); } else if (tot > lessons) pk.byMonth[ym0] = Math.max(0, pk.byMonth[ym0] - (tot - lessons)); }
+    if (ci === 3) { pk.byMonth = lessonsBy(start, pw); const t = Object.values(pk.byMonth).reduce((a, b) => a + b, 0); pk.byMonth[ym0] = (pk.byMonth[ym0] || 0) + (lessons - t); } // lezioni finite: da rinnovare
+    if (ci === 5) pk.endDate = D(-9); // Coaching che scade tra pochi giorni
+    o.packages['dp' + i] = pk;
+    const pay = (amount, date, note) => tx({ kind: 'entrata', amount, date, note: `${kind === 'pt' ? 'Pacchetto PT' : 'Coaching'} ${mo} mesi · ${names[ci]}${note || ''}`, accountId: 'dl', categoryId: kind === 'pt' ? 'c-pt' : 'c-coaching', clientId: 'dk' + ci, packageId: 'dp' + i });
+    if (how === 'tutto') pay(price, start);
+    else if (how === 'meta') pay(Math.round(price / 2), start, ' · acconto');
+    else if (how === 'acconto') pay(Math.round(price / 2), dayIn(ym0, 3), ' · acconto');
+    else { const rata = Math.round(price / mo); for (let k = 0; k <= ago && k < mo; k++) pay(rata, dayIn(addMonths(start.slice(0, 7), k), +start.slice(8)), ` · rata ${k + 1} di ${mo}`); }
+  });
+  // visite nutrizionali
+  [[7, 'prima', 40, 80, 78.4], [7, 'controllo', 12, 50, 76.9], [2, 'prima', 150, 80, 84.0], [2, 'controllo', 95, 50, 82.1], [2, 'controllo', 35, 50, 80.6], [5, 'prima', 140, 80, 63.2], [5, 'controllo', 20, 50, 61.5], [1, 'prima', 6, 80, 70.3]].forEach(([ci, kind, ago, price, w], i) => {
+    const id = 'dv' + i, date = D(ago);
+    o.visits[id] = { clientId: 'dk' + ci, kind, date, price, weight: w, nextDate: i === 1 ? D(-18) : i === 4 ? D(-25) : i === 6 ? D(-10) : '', notes: kind === 'prima' ? 'Anamnesi e obiettivi' : 'Piano aggiornato', createdAt: Date.now() - i, ...demo };
+    if (i !== 7) tx({ kind: 'entrata', amount: price, date, note: `${kind === 'prima' ? 'Prima visita' : 'Visita di controllo'} · ${names[ci]}`, accountId: i % 3 ? 'dl' : 'dc', categoryId: kind === 'prima' ? 'c-prima-visita' : 'c-visita-ctrl', clientId: 'dk' + ci, visitId: id });
+  });
+  // spese mensili di lavoro e personali, più lezioni singole pagate a parte
+  months.forEach((ym, mi) => {
+    const nl = 30 + Math.round(rnd() * 6); tx({ kind: 'entrata', amount: nl * 40, date: dayIn(ym, 12), note: `${nl} lezioni singole PT`, accountId: 'dl', categoryId: 'c-pt' });
+    tx({ kind: 'entrata', amount: 3 * 80, date: dayIn(ym, 10), note: 'Programmi di allenamento online (3)', accountId: 'dl', categoryId: 'c-coaching' });
+    const e = (amt, d, cat, scope, note, acc) => tx({ kind: 'spesa', amount: Math.round(amt * 100) / 100, date: dayIn(ym, d), note, accountId: acc || (scope === 'lavoro' ? 'dl' : 'dp'), categoryId: cat, scope });
+    e(450, 2, 'c-l-sala', 'lavoro', 'Affitto sala allenamento');
+    e(29.99, 6, 'c-l-soft', 'lavoro', 'App di gestione allenamenti');
+    if (mi % 3 === 0) e(380, 15, 'c-l-comm', 'lavoro', 'Commercialista');
+    if (mi === 1) e(219, 11, 'c-l-attrezz', 'lavoro', 'Kettlebell e bande elastiche');
+    if (mi === 3) e(160, 20, 'c-l-form', 'lavoro', 'Corso di aggiornamento');
+    if (mi === 4) e(85, 9, 'c-l-mkt', 'lavoro', 'Sponsorizzazione Instagram');
+    if (mi === 2) e(1250, 16, 'c-l-tasse', 'lavoro', 'Acconto imposte e contributi');
+    e(650, 1, 'c-casa', 'personale', 'Affitto casa');
+    e(280 + Math.round(rnd() * 90), 8, 'c-spesa', 'personale', 'Spesa settimanale');
+    e(60 + Math.round(rnd() * 70), 14, 'c-rist', 'personale', 'Cene fuori');
+    e(95 + Math.round(rnd() * 40), 18, 'c-bollette', 'personale', 'Luce, gas e internet');
+    e(55 + Math.round(rnd() * 30), 22, 'c-auto', 'personale', 'Carburante');
+    e(17.99, 4, 'c-abbon', 'personale', 'Streaming e musica');
+    if (mi % 2) e(70 + Math.round(rnd() * 80), 25, 'c-svago', 'personale', 'Concerto e uscite', 'dc');
+    if (mi === 4) e(340, 12, 'c-viaggi', 'personale', 'Weekend in montagna');
+    if (mi < 5) tx({ kind: 'giroconto', amount: 600, date: dayIn(ym, 27), note: 'Stipendio personale', accountId: 'dl', toAccountId: 'dp' });
+  });
+  tx({ kind: 'entrata', amount: 120, date: D(20), note: 'Rimborso spese mediche', accountId: 'dp', categoryId: 'c-rimb' });
+  o.holdings.dh = { name: 'ETF azionario mondiale', ticker: 'VWCE', assetClass: 'ETF', accountId: 'dt', quantity: 28, avgCost: 104.5, price: 118.2, priceDate: today, ...demo };
+  o.goals.dg1 = { name: 'Fondo emergenza', target: 6000, saved: 3850, deadline: addMonths(ym0, 8) + '-30', color: MACARON[5], ...demo };
+  o.goals.dg2 = { name: 'Nuova attrezzatura studio', target: 2500, saved: 900, deadline: addMonths(ym0, 5) + '-15', color: MACARON[3], ...demo };
+  // budget e obiettivi di attività
+  const bm = {}, tg = {};
+  months.forEach(ym => { bm[ym] = { 'c-casa': 650, 'c-spesa': 350, 'c-rist': 120, 'c-bollette': 140, 'c-auto': 80, 'c-svago': 100, 'c-abbon': 20, 'c-viaggi': 80, 'c-l-sala': 450, 'c-l-soft': 30, 'c-l-attrezz': 60, 'c-l-comm': 130, 'c-l-tasse': 250, 'c-l-form': 40, 'c-l-mkt': 30 }; tg[ym] = { lezioni: 60, prime: 2, controlli: 4, coaching: 1 }; });
+  return { ...Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v])), settings: { main: { demo: true, budgetsMonth: bm, targets: tg } } };
+}
 function startLocal() {
   S.local = true; S.user = { id: 'local', email: '' };
+  if (window.LULUDEX_DEMO && !LS.get('luludex.demoSeen', false)) {
+    // esempi solo se non ci sono ancora dati veri (le categorie predefinite non contano); mostrati una volta sola
+    const cur = LS.get(LOCAL_KEY, null) || {};
+    if (!['accounts', 'transactions', 'clients', 'packages', 'visits'].some(k => Object.keys(cur[k] || {}).length)) {
+      const d = demoData();
+      LS.set(LOCAL_KEY, { ...cur, ...d, categories: cur.categories || {}, settings: { main: { ...(cur.settings?.main || {}), ...d.settings.main } } });
+    }
+    LS.set('luludex.demoSeen', true);
+  }
   loadLocal(); S.synced = true; S.status = 'ok';
   render(); updateSync(); onFirstSync();
 }

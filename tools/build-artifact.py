@@ -28,7 +28,7 @@ s = re.sub(r'src="icons/icon-\d+\.png"', 'src="data:image/png;base64,' + icon + 
 # niente service worker dentro l'Artifact
 assert "if ('serviceWorker' in navigator && location.protocol === 'https:') {" in s
 s = s.replace("if ('serviceWorker' in navigator && location.protocol === 'https:') {", "if (false) { // service worker disattivato nell'Artifact")
-s = s.replace('<script src="config.js"></script>', '<script>window.LULUDEX_FIREBASE = null; // artifact: solo modalità locale</script>')
+s = s.replace('<script src="config.js"></script>', '<script>window.LULUDEX_FIREBASE = null; window.LULUDEX_DEMO = true; // artifact: modalità locale con dati di esempio</script>')
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(s)
 print(out, len(s))
