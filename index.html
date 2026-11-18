@@ -177,6 +177,33 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 @media (max-width:760px){ .scope-bar .seg{width:100%} }
 .pill.work{background:var(--accent-soft);color:var(--accent)}
 .cl-list{display:flex;flex-direction:column;gap:10px}
+.cal-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.cal-tools .grp{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cal-range{font-weight:600;min-width:150px;text-align:center}
+.cal-day .panel-h h2::first-letter{text-transform:uppercase}
+.cal-day.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.cal-day.empty{padding-block:12px}
+.cal-day .panel-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.cal-day.empty .panel-h{margin:0}
+.cal-day.empty h2{font-size:.95rem;color:var(--muted)}
+.ap-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.ap-main{flex:1 1 220px;display:flex;gap:12px;align-items:center;border:0;background:none;padding:0;text-align:left;cursor:pointer;color:inherit;font:inherit;min-width:0}
+.ap-main .l{display:flex;flex-direction:column;min-width:0}
+.ap-main small{color:var(--muted);overflow-wrap:anywhere}
+.ap-time{font-family:var(--f-display);font-weight:700;font-size:1.02rem;min-width:50px;font-variant-numeric:tabular-nums}
+.ap-row.late .ap-time{color:var(--warn)}
+.ap-row.done .ap-main{opacity:.65}
+.ap-side{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.cal-wd{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:center;padding-bottom:2px}
+.cal-cell{min-height:84px;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--surface);cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:3px;font:inherit;color:inherit;min-width:0}
+.cal-cell.out{opacity:.45}
+.cal-cell.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.cal-cell .d{font-weight:700;font-size:.85rem}
+.cal-cell .ev{font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:4px;padding:1px 4px;background:var(--accent-soft);color:var(--fg)}
+.cal-cell .ev.done{opacity:.55}
+.cal-cell .cnt{display:none;font-size:.72rem;font-weight:700;color:var(--accent)}
+@media (max-width:760px){ .cal-cell{min-height:54px;padding:5px;align-items:center} .cal-cell .ev{display:none} .cal-cell .cnt{display:block} }
 .cl-sum{display:flex;align-items:center;gap:10px;cursor:pointer;margin:-16px;padding:14px 16px;border-radius:var(--r);-webkit-tap-highlight-color:transparent}
 .cl-sum:hover{background:color-mix(in srgb, var(--surface-2) 55%, transparent)}
 .cl.open .cl-sum{border-bottom:1px solid var(--line);border-radius:var(--r) var(--r) 0 0;margin-bottom:0}
@@ -482,7 +509,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '13'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '14'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -555,7 +582,7 @@ function nextDate(iso, f) {
 }
 
 /* ---------- stato ---------- */
-const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages', 'visits', 'invoices', 'diets'];
+const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages', 'visits', 'invoices', 'diets', 'appointments'];
 const S = { fs: null, user: null, synced: false, status: 'loading', settings: {},
   ui: { budgetMode: 'mese', budgetYear: todayISO().slice(0, 4), year: todayISO().slice(0, 4), month: ymOf(todayISO()), q: '', fAcc: '', fCat: '', fKind: '', budgetMonth: ymOf(todayISO()), scope: (() => { try { return localStorage.getItem('luludex.scope') || 'tutto'; } catch (e) { return 'tutto'; } })(), cFilter: 'attivi', cq: '' } };
 COLS.forEach(c => S[c] = []);
@@ -841,7 +868,8 @@ function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.classNa
 /* ---------- navigazione ---------- */
 const ICONS = {
   panoramica: '<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>',
-  mensile: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
+  mensile: '<path d="M3 20h18"/><path d="M6 16v-5M11 16V7M16 16v-3M21 4l-5 5-4-3-6 5"/>',
+  calendario: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7.5 13h.01M12 13h.01M16.5 13h.01M7.5 17h.01M12 17h.01"/>',
   altro: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
   movimenti: '<path d="M7 7h13M7 7l3-3M7 7l3 3M17 17H4m13 0-3-3m3 3-3 3"/>',
   budget: '<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.5 6"/>',
@@ -850,7 +878,7 @@ const ICONS = {
   obiettivi: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const ROUTES = { panoramica: 'Panoramica', mensile: 'Mensile', movimenti: 'Movimenti', clienti: 'Clienti', budget: 'Budget', patrimonio: 'Patrimonio', obiettivi: 'Obiettivi', impostazioni: 'Impostazioni' };
+const ROUTES = { panoramica: 'Panoramica', mensile: 'Mensile', movimenti: 'Movimenti', clienti: 'Clienti', calendario: 'Calendario', budget: 'Budget', patrimonio: 'Patrimonio', obiettivi: 'Obiettivi', impostazioni: 'Impostazioni' };
 const route = () => { const h = location.hash.slice(1); return ROUTES[h] ? h : 'panoramica'; };
 const MORE_ROUTES = ['budget', 'patrimonio', 'obiettivi', 'impostazioni'];
 const routeLabel = k => ROUTES[k];
@@ -939,6 +967,7 @@ let folded = {}; try { folded = JSON.parse(localStorage.getItem('luludex.folded'
 const CHEV = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 function addFolds(r) {
   $$('#view section.panel').forEach(sec => {
+    if (sec.hasAttribute('data-nofold')) return; // es. i giorni del calendario
     const h = sec.querySelector(':scope > .panel-h'); if (!h) return;
     const t = (h.querySelector('h2')?.textContent || '').replace(/\b\d{4}\b/g, '').replace(/\s+/g, ' ').trim(); if (!t) return;
     const key = r + '|' + t, f = !!folded[key];
@@ -1332,6 +1361,120 @@ function clientSummary(c) {
   const due = clientDue(c.id); if (due > 0) pills.push(`<span class="pill neg num">Da saldare ${money0(due)}</span>`);
   return { line, pills: pills.join('') };
 }
+/* ---------- calendario e appuntamenti ---------- */
+const SERVICES = { pt: { l: 'PT', c: 'acc', done: 'Lezione fatta' }, prima: { l: 'Prima visita', c: 'pos', done: 'Visita fatta' }, controllo: { l: 'Visita di controllo', c: 'warn', done: 'Visita fatta' } };
+const apptKey = a => a.date + 'T' + (a.time || '00:00');
+const apptsSorted = list => [...list].sort((a, b) => apptKey(a).localeCompare(apptKey(b)));
+const apptPast = a => { const now = new Date(), d = isoOf(now), t = pad(now.getHours()) + ':' + pad(now.getMinutes()); return a.date < d || (a.date === d && (a.time || '00:00') <= t); };
+const weekStart = iso => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return isoOf(d); };
+const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return isoOf(d); };
+const nextAppt = clientId => apptsSorted(S.appointments.filter(a => a.clientId === clientId && !a.done && !apptPast(a)))[0];
+const apptWhen = a => `${new Date(a.date + 'T12:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} ${a.time || ''}`.trim();
+// abbonamento PT a cui contare la lezione: quello attivo in quella data, altrimenti quello in corso
+function ptPkgFor(clientId, date) {
+  const ps = S.packages.filter(p => p.clientId === clientId && p.kind === 'pt').sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)));
+  return ps.find(p => p.startDate <= date && pkgEnd(p) >= date && !(+p.lessons && pkgDone(p) >= +p.lessons)) || ps.find(p => p.startDate <= date && pkgEnd(p) >= date) || ps.find(pkgOpen) || null;
+}
+function apptRow(a) {
+  const c = byId('clients', a.clientId), sv = SERVICES[a.service] || SERVICES.pt, late = !a.done && apptPast(a);
+  const p = a.packageId ? byId('packages', a.packageId) : null;
+  return `<div class="ap-row ${a.done ? 'done' : ''} ${late ? 'late' : ''}">
+    <button type="button" class="ap-main" data-act="edit-appt" data-id="${esc(a.id)}"><span class="ap-time">${esc(a.time || '—')}</span><span class="l"><b>${esc(c?.name || 'Cliente eliminato')}</b><small>${esc(sv.l)}${a.duration ? ' · ' + a.duration + ' min' : ''}${a.notes ? ' · ' + esc(a.notes) : ''}${a.done && p ? ' · contata in ' + esc(pkgLabel(p)) : ''}</small></span></button>
+    <span class="ap-side"><span class="pill ${sv.c === 'acc' ? 'work' : sv.c}">${esc(sv.l)}</span>${a.done
+      ? `<span class="pill pos">✓ ${a.service === 'pt' ? 'Lezione fatta' : 'Visita fatta'}</span><button type="button" class="btn small ghost" data-act="appt-undo" data-id="${esc(a.id)}">Annulla</button>`
+      : `${late ? '<span class="pill warn">Da segnare</span>' : ''}<button type="button" class="btn small ${late ? 'primary' : ''}" data-act="appt-done" data-id="${esc(a.id)}">${sv.done}</button>`}</span>
+  </div>`;
+}
+VIEWS.calendario = () => {
+  const mode = S.ui.calMode || 'settimana', anchor = S.ui.calDate || todayISO(), today = todayISO();
+  const pending = S.appointments.filter(a => !a.done && apptPast(a));
+  const todayList = S.appointments.filter(a => a.date === today);
+  const ws0 = weekStart(today), weekN = S.appointments.filter(a => a.date >= ws0 && a.date <= addDays(ws0, 6)).length;
+  let body, range;
+  if (mode === 'mese') {
+    const ym = ymOf(anchor), first = ym + '-01', start = weekStart(first);
+    const lastDay = new Date(+ym.slice(0, 4), +ym.slice(5), 0).getDate(), weeks = Math.ceil(((new Date(first + 'T12:00:00').getDay() + 6) % 7 + lastDay) / 7);
+    range = ymLabel(ym);
+    let cells = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(d => `<div class="cal-wd">${d}</div>`).join('');
+    for (let i = 0; i < weeks * 7; i++) {
+      const d = addDays(start, i), list = apptsSorted(S.appointments.filter(a => a.date === d));
+      cells += `<button type="button" class="cal-cell ${ymOf(d) !== ym ? 'out' : ''} ${d === today ? 'today' : ''}" data-act="cal-day" data-d="${d}" aria-label="${dayLabel(d)}: ${list.length} appuntament${list.length === 1 ? 'o' : 'i'}"><span class="d">${+d.slice(8)}</span>${list.slice(0, 3).map(a => `<span class="ev ${a.done ? 'done' : ''}">${esc(a.time || '')} ${esc(byId('clients', a.clientId)?.name.split(' ')[0] || '')}</span>`).join('')}${list.length > 3 ? `<span class="ev">+${list.length - 3}</span>` : ''}${list.length ? `<span class="cnt">${list.length}</span>` : ''}</button>`;
+    }
+    body = `<section class="panel"><div class="cal-grid">${cells}</div><p class="muted" style="margin:10px 0 0;font-size:.82rem">Tocca un giorno per vedere la sua settimana.</p></section>`;
+  } else {
+    const ws = weekStart(anchor), we = addDays(ws, 6);
+    range = `${+ws.slice(8)} ${MESI_B[+ws.slice(5, 7) - 1]} – ${+we.slice(8)} ${MESI_B[+we.slice(5, 7) - 1]} ${we.slice(0, 4)}`;
+    body = Array.from({ length: 7 }, (_, i) => addDays(ws, i)).map(d => {
+      const list = apptsSorted(S.appointments.filter(a => a.date === d));
+      return `<section class="panel cal-day ${d === today ? 'today' : ''} ${list.length ? '' : 'empty'}" data-nofold><div class="panel-h"><h2>${dayLabel(d)}${d === today ? ' · oggi' : ''}</h2><div style="display:flex;gap:6px;align-items:center">${list.length ? `<span class="muted">${list.length}</span>` : '<span class="muted" style="font-size:.85rem">Nessun appuntamento</span>'}<button type="button" class="btn small ghost" data-act="new-appt" data-d="${d}" aria-label="Nuovo appuntamento ${dayLabel(d)}">+</button></div></div>${list.map(apptRow).join('')}</section>`;
+    }).join('');
+  }
+  return `
+  <div class="head title-only"><div><div class="eyebrow">Calendario</div></div><div class="head-actions"><button class="btn primary" data-act="new-appt">+ Appuntamento</button></div></div>
+  <section class="kpis">
+    <div class="kpi"><span class="eyebrow">Oggi</span><span class="v num">${todayList.length}</span><span class="s">${todayList.filter(a => a.done).length} già fatt${todayList.filter(a => a.done).length === 1 ? 'o' : 'i'}</span></div>
+    <div class="kpi"><span class="eyebrow">Questa settimana</span><span class="v num">${weekN}</span><span class="s">Appuntamenti in agenda</span></div>
+    <div class="kpi"><span class="eyebrow">Da segnare</span><span class="v num ${pending.length ? 'warn' : ''}">${pending.length}</span><span class="s">${pending.length ? 'Appuntamenti passati non segnati' : 'Tutto segnato'}</span></div>
+    <div class="kpi"><span class="eyebrow">Prossimo</span><span class="v num" style="font-size:1.1rem">${(() => { const n = apptsSorted(S.appointments.filter(a => !a.done && !apptPast(a)))[0]; return n ? esc(apptWhen(n)) : '—'; })()}</span><span class="s">${(() => { const n = apptsSorted(S.appointments.filter(a => !a.done && !apptPast(a)))[0]; return n ? esc(byId('clients', n.clientId)?.name || '') + ' · ' + esc(SERVICES[n.service]?.l || '') : 'Nessun appuntamento in arrivo'; })()}</span></div>
+  </section>
+  ${pending.length ? `<div class="banner"><div><b>${pending.length === 1 ? '1 appuntamento passato da segnare' : pending.length + ' appuntamenti passati da segnare'}.</b> <span class="muted">Premi “Lezione fatta” o “Visita fatta” per contarli nelle schede dei clienti.</span></div>${mode === 'settimana' && weekStart(apptsSorted(pending)[0].date) !== weekStart(anchor) ? `<button class="btn small" data-act="cal-day" data-d="${apptsSorted(pending)[0].date}">Vai al primo</button>` : ''}</div>` : ''}
+  <div class="cal-tools">
+    <div class="seg" role="group" aria-label="Vista" style="min-width:min(100%,240px)">${[['settimana', 'Settimana'], ['mese', 'Mese']].map(([v, l]) => `<button type="button" data-act="cal-mode" data-v="${v}" aria-pressed="${mode === v}">${l}</button>`).join('')}</div>
+    <div class="grp"><div class="month-nav"><button class="icon-btn" data-act="cal-move" data-d="-1" aria-label="Precedente">‹</button><span class="cal-range">${range}</span><button class="icon-btn" data-act="cal-move" data-d="1" aria-label="Successivo">›</button></div><button class="btn small" data-act="cal-today">Oggi</button></div>
+  </div>
+  ${S.clients.length ? body : `<section class="panel"><div class="empty"><p>Per fissare un appuntamento aggiungi prima un cliente nella sezione Clienti.</p><a class="btn primary" href="#clienti">Vai ai clienti</a></div></section>`}`;
+};
+function apptForm(a, preset) {
+  const isNew = !a;
+  if (!S.clients.length) { toast('Aggiungi prima un cliente nella sezione Clienti.', true); return; }
+  const now = new Date(), nextH = pad(Math.min(21, now.getHours() + 1)) + ':00';
+  a = a || { service: 'pt', date: S.ui.calDate || todayISO(), time: nextH, duration: 60, ...preset };
+  openForm({
+    title: isNew ? 'Nuovo appuntamento' : 'Appuntamento',
+    intro: !isNew && a.done ? `<p class="muted" style="margin:0;font-size:.88rem">Già segnato come fatto${a.packageId && byId('packages', a.packageId) ? ': lezione contata in ' + esc(pkgLabel(byId('packages', a.packageId))) : ''}. Per toglierlo usa “Annulla” nel calendario.</p>` : '',
+    fields: [
+      { id: 'clientId', label: 'Cliente', type: 'select', value: a.clientId || '', options: [{ v: '', l: '— scegli il cliente —' }, ...clientsSorted().map(c => ({ v: c.id, l: c.name }))] },
+      { id: 'service', type: 'seg', label: 'Servizio', value: a.service, options: [{ v: 'pt', l: 'PT' }, { v: 'prima', l: 'Prima visita' }, { v: 'controllo', l: 'Visita di controllo' }] },
+      [{ id: 'date', label: 'Data', type: 'date', value: a.date, required: true }, { id: 'time', label: 'Ora', type: 'time', value: a.time || '', required: true }],
+      { id: 'duration', label: 'Durata', type: 'select', value: String(a.duration || 60), options: [30, 45, 60, 75, 90, 120].map(m => ({ v: String(m), l: m + ' minuti' })) },
+      { id: 'notes', label: 'Note', value: a.notes || '', placeholder: 'Es. gambe e core, portare il diario alimentare' }
+    ],
+    onChange(v, form, ev) { if (ev?.target?.name === 'service' && v.service !== 'pt' && form.elements.duration.value === '60') form.elements.duration.value = v.service === 'prima' ? '60' : '45'; },
+    validate(v) {
+      if (!v.clientId) return 'Scegli il cliente.';
+      if (!v.date) return 'Indica la data.';
+      if (!v.time) return 'Indica l\'ora.';
+    },
+    async onSubmit(v) {
+      const id = a.id || uid();
+      const doc = { ...strip(a), clientId: v.clientId, service: v.service, date: v.date, time: v.time, duration: +v.duration || 60, notes: v.notes.trim(), done: !!a.done, createdAt: a.createdAt || Date.now() };
+      const clash = S.appointments.find(x => x.id !== id && x.date === v.date && x.time === v.time);
+      const ok = await put('appointments', id, doc);
+      if (ok) { S.ui.calDate = v.date; toast((isNew ? 'Appuntamento fissato' : 'Appuntamento aggiornato') + (clash ? ` · attenzione: alla stessa ora c'è anche ${byId('clients', clash.clientId)?.name || 'un altro cliente'}` : '')); }
+      return ok;
+    },
+    deleteLabel: 'Elimina appuntamento',
+    onDelete: isNew ? null : async () => { const ok = await del('appointments', a.id); ok && toast(a.done && a.packageId ? 'Appuntamento eliminato. La lezione resta contata nell\'abbonamento.' : 'Appuntamento eliminato'); return ok; }
+  });
+}
+async function apptDone(a) {
+  if (!a || a.done) return;
+  const c = byId('clients', a.clientId);
+  if (a.service !== 'pt') return visitForm(null, a.clientId, { kind: a.service, date: a.date, apptId: a.id });
+  const p = ptPkgFor(a.clientId, a.date), ym = ymOf(a.date);
+  if (!p) { await put('appointments', a.id, { ...strip(a), done: true, packageId: '', countedYm: '' }); toast(`Segnata come fatta. ${c?.name || 'Il cliente'} non ha un abbonamento PT: la lezione non è stata contata.`, true); return; }
+  const n = (+pkgByMonth(p)[ym] || 0) + 1;
+  await put('packages', p.id, pkgWithMonth(p, ym, n));
+  await put('appointments', a.id, { ...strip(a), done: true, packageId: p.id, countedYm: ym });
+  const np = byId('packages', p.id), tot = +np.lessons || 0, done = pkgDone(np);
+  toast(`Lezione contata: ${c?.name || ''} · ${done}/${tot}${tot && done >= tot ? ' · abbonamento completato' : ''}`);
+}
+async function apptUndo(a) {
+  if (!a || !a.done) return;
+  if (a.packageId && a.countedYm) { const p = byId('packages', a.packageId); if (p) await put('packages', p.id, pkgWithMonth(p, a.countedYm, Math.max(0, (+pkgByMonth(p)[a.countedYm] || 0) - 1))); }
+  await put('appointments', a.id, { ...strip(a), done: false, packageId: '', countedYm: '' });
+  toast(a.visitId ? 'Segno tolto. La visita resta registrata nella scheda del cliente: eliminala da lì se serve.' : a.packageId ? 'Lezione tolta dall\'abbonamento' : 'Segno tolto');
+}
 function clientCards() {
   const f = S.ui.cFilter || 'attivi', q = (S.ui.cq || '').trim().toLowerCase();
   let list = clientsSorted();
@@ -1344,7 +1487,7 @@ function clientCards() {
       <div class="cl-body" ${open ? '' : 'hidden'}><div class="cl-contact"><div style="min-width:0"><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small>${(() => { const pays = clientPayments(c.id); return pays.length ? `<small class="muted" style="display:block">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'} · incassati <span class="num pos" style="font-weight:600">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</span></small>` : ''; })()}</div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica</button></div>
       ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
         return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
-      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button></div></div></article>`; }).join('');
+      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button></div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}</div></article>`; }).join('');
 }
 VIEWS.clienti = () => {
   const today = todayISO(), ym = ymOf(today), soon = isoOf(new Date(Date.now() + 30 * 864e5));
@@ -1378,7 +1521,7 @@ VIEWS.clienti = () => {
 };
 function clientForm(c) {
   const isNew = !c; c = c || {};
-  const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id), vs = isNew ? [] : clientVisits(c.id), invs = isNew ? [] : S.invoices.filter(i => i.clientId === c.id), dts = isNew ? [] : S.diets.filter(x => x.clientId === c.id);
+  const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id), vs = isNew ? [] : clientVisits(c.id), invs = isNew ? [] : S.invoices.filter(i => i.clientId === c.id), dts = isNew ? [] : S.diets.filter(x => x.clientId === c.id), aps = isNew ? [] : S.appointments.filter(x => x.clientId === c.id);
   openForm({
     title: isNew ? 'Nuovo cliente' : c.name,
     intro: (() => { const pays = isNew ? [] : clientPayments(c.id); let h = '';
@@ -1407,7 +1550,7 @@ function clientForm(c) {
       return ok;
     },
     deleteLabel: ps.length || vs.length || invs.length || dts.length ? `Elimina cliente${ps.length ? ', pacchetti' : ''}${vs.length ? ', visite' : ''}${invs.length ? ', fatture' : ''}${dts.length ? ', diete' : ''}` : 'Elimina cliente',
-    onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); vs.forEach(v => del('visits', v.id)); invs.forEach(i => { del('invoices', i.id); if (i.fileKey) FILES.del(i.fileKey).catch(() => {}); }); dts.forEach(x => { del('diets', x.id); if (x.fileKey) FILES.del(x.fileKey).catch(() => {}); }); const ok = await del('clients', c.id); ok && toast(ps.length || vs.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
+    onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); vs.forEach(v => del('visits', v.id)); invs.forEach(i => { del('invoices', i.id); if (i.fileKey) FILES.del(i.fileKey).catch(() => {}); }); dts.forEach(x => { del('diets', x.id); if (x.fileKey) FILES.del(x.fileKey).catch(() => {}); }); aps.forEach(x => del('appointments', x.id)); const ok = await del('clients', c.id); ok && toast(ps.length || vs.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
   });
 }
 function pkgForm(p, clientId, preset) {
@@ -1455,12 +1598,13 @@ function pkgForm(p, clientId, preset) {
     onDelete: isNew ? null : async () => { const ok = await del('packages', p.id); ok && toast('Pacchetto eliminato. I pagamenti restano tra le entrate.'); return ok; }
   });
 }
-function visitForm(v, clientId) {
+function visitForm(v, clientId, preset) {
   const isNew = !v;
   if (!S.clients.length) { toast('Aggiungi prima un cliente.', true); return; }
   const accs = accOptions();
   const prevVisits = clientId ? clientVisits(clientId) : [];
-  v = v || { kind: prevVisits.length ? 'controllo' : 'prima', date: todayISO(), clientId: clientId || clientsSorted()[0].id, price: prevVisits.find(x => x.kind === 'controllo')?.price ?? '' };
+  const apptId = preset?.apptId || '';
+  v = v || { kind: prevVisits.length ? 'controllo' : 'prima', date: todayISO(), clientId: clientId || clientsSorted()[0].id, price: prevVisits.find(x => x.kind === (preset?.kind || 'controllo'))?.price ?? (preset?.kind === 'prima' ? prevVisits.find(x => x.kind === 'prima')?.price ?? '' : ''), ...(preset ? { kind: preset.kind, date: preset.date } : {}) };
   const linked = !isNew && S.transactions.some(t => t.visitId === v.id);
   openForm({
     title: isNew ? 'Nuova visita' : VISIT[v.kind].l,
@@ -1489,6 +1633,7 @@ function visitForm(v, clientId) {
         const catId = VISIT[x.kind].cat;
         await put('transactions', uid(), { kind: 'entrata', amount: price, date: x.date, note: `${VISIT[x.kind].l} · ${byId('clients', x.clientId)?.name || ''}`, accountId: x.accountId, categoryId: cat(catId) ? catId : '', scope: 'lavoro', visitId: id, clientId: x.clientId, createdAt: Date.now() });
       }
+      if (ok && apptId) { const ap = byId('appointments', apptId); if (ap) await put('appointments', apptId, { ...strip(ap), done: true, visitId: id }); }
       ok && toast(isNew ? (x.paidNow && price > 0 ? 'Visita registrata e incasso aggiunto' : 'Visita registrata') : 'Visita aggiornata');
       return ok;
     },
@@ -2701,6 +2846,14 @@ document.addEventListener('click', e => {
     if (open) openClients.add(id); else openClients.delete(id); saveOpenClients(); return;
   }
   if (a === 'cl-all') { const ids = [...document.querySelectorAll('#cl-list .cl-sum')].map(x => x.dataset.id); if (t.dataset.v === 'open') ids.forEach(i => openClients.add(i)); else ids.forEach(i => openClients.delete(i)); saveOpenClients(); render(); return; }
+  if (a === 'new-appt') return apptForm(null, t.dataset.d ? { date: t.dataset.d } : (t.dataset.client ? { clientId: t.dataset.client } : undefined));
+  if (a === 'edit-appt') return apptForm(byId('appointments', id));
+  if (a === 'appt-done') return apptDone(byId('appointments', id));
+  if (a === 'appt-undo') return apptUndo(byId('appointments', id));
+  if (a === 'cal-mode') { S.ui.calMode = t.dataset.v; render(); return; }
+  if (a === 'cal-today') { S.ui.calDate = todayISO(); render(); return; }
+  if (a === 'cal-day') { S.ui.calDate = t.dataset.d; S.ui.calMode = 'settimana'; render(); return; }
+  if (a === 'cal-move') { const d = S.ui.calDate || todayISO(); S.ui.calDate = (S.ui.calMode || 'settimana') === 'mese' ? addMonths(ymOf(d), +t.dataset.d) + '-01' : addDays(d, 7 * +t.dataset.d); render(); return; }
   if (a === 'client-pays') return paymentsSheet(id);
   if (a === 'new-invoice') return invoiceForm(null, t.dataset.client);
   if (a === 'edit-invoice') return invoiceForm(byId('invoices', id));
@@ -2991,7 +3144,7 @@ function demoData() {
   const today = todayISO(), ym0 = ymOf(today), D = n => isoOf(new Date(Date.now() - n * 864e5));
   const dayIn = (ym, d) => { const last = new Date(+ym.slice(0, 4), +ym.slice(5), 0).getDate(), x = ym + '-' + pad(Math.min(d, last)); return x > today ? today : x; };
   const months = Array.from({ length: 6 }, (_, i) => addMonths(ym0, i - 5));
-  const o = { accounts: {}, clients: {}, packages: {}, visits: {}, transactions: {}, holdings: {}, goals: {} }, demo = { demo: true };
+  const o = { accounts: {}, clients: {}, packages: {}, visits: {}, transactions: {}, holdings: {}, goals: {}, appointments: {} }, demo = { demo: true };
   let n = 0; const tx = d => { o.transactions['dt' + (++n)] = { ...d, createdAt: Date.now() - n, ...demo }; return 'dt' + n; };
   o.accounts.dl = { name: 'Conto lavoro', type: 'conto', currency: 'EUR', openingBalance: 4200, order: 0, ...demo };
   o.accounts.dp = { name: 'Conto personale', type: 'conto', currency: 'EUR', openingBalance: 2600, order: 1, ...demo };
@@ -3045,6 +3198,18 @@ function demoData() {
     if (mi < 5) tx({ kind: 'giroconto', amount: 600, date: dayIn(ym, 27), note: 'Stipendio personale', accountId: 'dl', toAccountId: 'dp' });
   });
   tx({ kind: 'entrata', amount: 120, date: D(20), note: 'Rimborso spese mediche', accountId: 'dp', categoryId: 'c-rimb' });
+  o.appointments = {};
+  const slots = ['07:00', '09:00', '12:30', '17:30', '18:30', '19:30'], ptc = [0, 1, 3, 4, 6, 8];
+  for (let off = -4; off <= 6; off++) {
+    const d = D(-off), wd = new Date(d + 'T12:00:00').getDay(); if (wd === 0) continue;
+    const k = wd === 6 ? 2 : 3 + Math.round(rnd() * 2);
+    for (let j = 0; j < k; j++) {
+      const ci = ptc[(off * 5 + 20 + j) % ptc.length], past = off < 0 || (off === 0 && j < 1); // clienti e orari diversi nello stesso giorno
+      o.appointments['da' + off + '_' + j] = { clientId: 'dk' + ci, service: 'pt', date: d, time: slots[(j + (off & 1)) % slots.length], duration: 60, notes: ['Gambe e glutei', 'Upper body', 'Core e mobilità', 'Circuito full body'][(j + off + 8) % 4], done: past && !(off === -1 && j === 0), createdAt: Date.now() - j, ...demo };
+    }
+  }
+  o.appointments.dv1 = { clientId: 'dk7', service: 'controllo', date: D(-3), time: '16:00', duration: 45, notes: 'Controllo mensile', done: false, ...demo };
+  o.appointments.dv2 = { clientId: 'dk5', service: 'controllo', date: D(-9), time: '15:00', duration: 45, notes: '', done: false, ...demo };
   o.holdings.dh = { name: 'ETF azionario mondiale', ticker: 'VWCE', assetClass: 'ETF', accountId: 'dt', quantity: 28, avgCost: 104.5, price: 118.2, priceDate: today, ...demo };
   o.goals.dg1 = { name: 'Fondo emergenza', target: 6000, saved: 3850, deadline: addMonths(ym0, 8) + '-30', color: MACARON[5], ...demo };
   o.goals.dg2 = { name: 'Nuova attrezzatura studio', target: 2500, saved: 900, deadline: addMonths(ym0, 5) + '-15', color: MACARON[3], ...demo };
@@ -3064,6 +3229,7 @@ function startLocal() {
     }
     LS.set('luludex.demoSeen', true);
   }
+  if (window.LULUDEX_DEMO) { const cur = LS.get(LOCAL_KEY, null); if (cur && cur.settings?.main?.demo && !Object.keys(cur.appointments || {}).length && Object.keys(cur.clients || {}).some(k => k.startsWith('dk'))) LS.set(LOCAL_KEY, { ...cur, appointments: demoData().appointments }); }
   loadLocal(); S.synced = true; S.status = 'ok';
   render(); updateSync(); onFirstSync();
 }
