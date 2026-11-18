@@ -60,7 +60,7 @@ body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14
 button,input,select,textarea{font:inherit;color:inherit}
 .num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .mono{font-family:var(--f-data);font-size:.92em}
-.pos{color:var(--pos)} .neg{color:var(--neg)} .muted{color:var(--muted)}
+.pos{color:var(--pos)} .neg{color:var(--neg)} .warn{color:var(--warn)} .muted{color:var(--muted)}
 h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
 h1{font-size:1.75rem;font-weight:700} h2{font-size:1.1rem;font-weight:700} h3{font-size:.95rem;font-weight:600}
 .eyebrow{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
@@ -142,6 +142,22 @@ a.btn{color:inherit;text-decoration:none}
 .bar{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;position:relative}
 .bar i{display:block;height:100%;border-radius:99px;background:var(--bar)}
 .bar.over i{background:var(--neg)} .bar.near i{background:var(--warn)}
+.bar.done i{background:var(--pos)}
+.scope-bar{display:flex;justify-content:flex-end;margin-bottom:-6px}
+.scope-bar .seg{min-width:min(100%,320px)}
+.pill.work{background:var(--accent-soft);color:var(--accent)}
+.cl-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:14px;align-items:start}
+.cl{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.cl-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.cl-h b{font-size:1.02rem;display:block}
+.cl-h small{color:var(--muted);overflow-wrap:anywhere}
+.pk{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.pk.ended{opacity:.62}
+.pk-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pk-row{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:.88rem}
+.pk-act{display:flex;gap:6px;flex-wrap:wrap}
+.cl-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;justify-content:space-between}
+.cl-tools .field{flex:1 1 220px;max-width:360px}
 .catrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:8px 0}
 .catrow .bar{grid-column:1/-1}
 .catname{display:flex;align-items:center;gap:8px;min-width:0}
@@ -317,15 +333,22 @@ function nextDate(iso, f) {
 }
 
 /* ---------- stato ---------- */
-const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots'];
+const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages'];
 const S = { fs: null, user: null, synced: false, status: 'loading', settings: {},
-  ui: { budgetMode: 'mese', budgetYear: todayISO().slice(0, 4), year: todayISO().slice(0, 4), month: ymOf(todayISO()), q: '', fAcc: '', fCat: '', fKind: '', budgetMonth: ymOf(todayISO()) } };
+  ui: { budgetMode: 'mese', budgetYear: todayISO().slice(0, 4), year: todayISO().slice(0, 4), month: ymOf(todayISO()), q: '', fAcc: '', fCat: '', fKind: '', budgetMonth: ymOf(todayISO()), scope: (() => { try { return localStorage.getItem('luludex.scope') || 'tutto'; } catch (e) { return 'tutto'; } })(), cFilter: 'attivi', cq: '' } };
 COLS.forEach(c => S[c] = []);
 const byId = (col, id) => S[col].find(x => x.id === id);
 const cat = id => byId('categories', id);
 const acc = id => byId('accounts', id);
 const activeAccounts = () => S.accounts.filter(a => !a.archived).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
 const catsOf = kind => S.categories.filter(c => c.kind === kind).sort((a, b) => a.name.localeCompare(b.name, 'it'));
+// Ambito: ogni movimento è di Lavoro o Personale (proposto dalla categoria, modificabile).
+const SCOPES = { lavoro: 'Lavoro', personale: 'Personale' };
+const catScope = c => c?.scope === 'lavoro' ? 'lavoro' : 'personale';
+const txScope = t => t.scope || catScope(cat(t.categoryId));
+const inScope = t => !S.ui.scope || S.ui.scope === 'tutto' || t.kind === 'giroconto' || txScope(t) === S.ui.scope;
+const catInScope = c => !S.ui.scope || S.ui.scope === 'tutto' || catScope(c) === S.ui.scope;
+const scopedCats = kind => catsOf(kind).filter(catInScope);
 const isDemo = () => [...COLS].some(c => S[c].some(x => x.demo));
 
 /* ---------- calcoli ---------- */
@@ -422,7 +445,7 @@ const investTotal = () => S.holdings.reduce((a, h) => a + holdingValue(h), 0);
 function yearTotals(year, upToMD) {
   let inc = 0, out = 0;
   for (const t of S.transactions) {
-    if (!String(t.date).startsWith(year)) continue;
+    if (!inScope(t) || !String(t.date).startsWith(year)) continue;
     if (upToMD && String(t.date).slice(5) > upToMD) continue;
     if (t.kind === 'entrata') inc += +t.amount || 0; else if (isOut(t)) out += +t.amount || 0;
   }
@@ -431,7 +454,7 @@ function yearTotals(year, upToMD) {
 function monthStats(ym) {
   let inc = 0, exp = 0; const byCat = {};
   for (const t of S.transactions) {
-    if (ymOf(t.date) !== ym) continue;
+    if (ymOf(t.date) !== ym || !inScope(t)) continue;
     const v = +t.amount || 0;
     if (t.kind === 'entrata') inc += v;
     else if (isOut(t)) { exp += v; byCat[t.categoryId] = (byCat[t.categoryId] || 0) + v; }
@@ -516,7 +539,13 @@ function listen() {
   }
 }
 function onFirstSync() {
-  if (!S.categories.length) DEFAULT_CATS.forEach(([id, name, kind], i) => put('categories', id, { name, kind, color: MACARON[i % MACARON.length] }));
+  if (!S.categories.length) DEFAULT_CATS.forEach(([id, name, kind, scope], i) => put('categories', id, { name, kind, scope, color: MACARON[i % MACARON.length] }));
+  else if (!S.settings.catsPT) {
+    // aggiorna le categorie create con la versione precedente
+    DEFAULT_CATS.forEach(([id, name, kind, scope], i) => { const c = cat(id); if (!c) put('categories', id, { name, kind, scope, color: MACARON[i % MACARON.length] }); else if (!c.scope) put('categories', id, { ...strip(c), scope }); });
+    OLD_CATS.forEach(id => { if (cat(id) && !S.transactions.some(t => t.categoryId === id) && !S.recurring.some(r => r.categoryId === id)) del('categories', id); });
+  }
+  if (!S.settings.catsPT) saveSettings({ catsPT: true });
   fxRefresh();
 }
 async function refresh() {
@@ -542,11 +571,12 @@ const ICONS = {
   altro: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
   movimenti: '<path d="M7 7h13M7 7l3-3M7 7l3 3M17 17H4m13 0-3-3m3 3-3 3"/>',
   budget: '<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.5 6"/>',
+  clienti: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M17.5 14.2a6.5 6.5 0 0 1 4 5.8"/>',
   patrimonio: '<path d="M3 20h18M5 20V10m4 10V10m6 10V10m4 10V10M2 10l10-6 10 6"/>',
   obiettivi: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const ROUTES = { panoramica: 'Panoramica', mensile: 'Mensile', movimenti: 'Movimenti', budget: 'Budget', patrimonio: 'Patrimonio', obiettivi: 'Obiettivi', impostazioni: 'Impostazioni' };
+const ROUTES = { panoramica: 'Panoramica', mensile: 'Mensile', movimenti: 'Movimenti', clienti: 'Clienti', budget: 'Budget', patrimonio: 'Patrimonio', obiettivi: 'Obiettivi', impostazioni: 'Impostazioni' };
 const route = () => { const h = location.hash.slice(1); return ROUTES[h] ? h : 'panoramica'; };
 const MORE_ROUTES = ['budget', 'patrimonio', 'obiettivi', 'impostazioni'];
 const routeLabel = k => ROUTES[k];
@@ -593,6 +623,8 @@ const CAT_ICONS = {
   tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><path d="M7.5 7.5h.01"/>'
 };
 const CAT_ICON_RULES = [
+  [/^pt$|personal|coaching|allenam|attrezz/i, 'dumbbell'], [/visita/i, 'heart'], [/sala|palestra/i, 'building'], [/software|\bapp\b/i, 'phone'],
+  [/marketing|pubblicit/i, 'trend'], [/commercialist|contribut/i, 'receipt'],
   [/mutuo|prestit|finanziam/i, 'key'], [/assicuraz/i, 'shield'], [/condomin/i, 'building'], [/manutenz|riparaz|lavori/i, 'wrench'],
   [/spesa alim|supermerc|alimentar|^spesa$|grocer/i, 'basket'], [/ristor|cena|pranzo|take ?away|delivery/i, 'utensils'], [/\bbar\b|caff/i, 'coffee'],
   [/wi-?fi|internet|fibra/i, 'wifi'], [/telefon|cellular|mobile/i, 'phone'], [/acqua/i, 'drop'], [/\bgas\b|riscaldam/i, 'flame'], [/utenz|bollett|luce|energia|elettric/i, 'bulb'],
@@ -621,7 +653,7 @@ function render() {
   }
   const r = route();
   const sx = window.scrollY;
-  v.innerHTML = `<div class="banner" id="offline-banner" ${netDown && pendingWrites ? '' : 'hidden'}><div><b>Sei offline.</b> <span class="muted">Le modifiche sono salvate sul telefono e verranno inviate appena torna la connessione.</span></div></div>` + (isDemo() ? demoBanner() : '') + VIEWS[r]();
+  v.innerHTML = `<div class="banner" id="offline-banner" ${netDown && pendingWrites ? '' : 'hidden'}><div><b>Sei offline.</b> <span class="muted">Le modifiche sono salvate sul telefono e verranno inviate appena torna la connessione.</span></div></div>` + (isDemo() ? demoBanner() : '') + (SCOPED_VIEWS.includes(r) ? scopeBar() : '') + VIEWS[r]();
   drawCharts();
   window.scrollTo(0, sx);
 }
@@ -642,7 +674,7 @@ function txRow(t) {
   let title, sub, cls, sign;
   if (t.kind === 'giroconto') { title = t.note || 'Giroconto'; sub = `${a?.name || '?'} → ${acc(t.toAccountId)?.name || '?'}`; cls = 'muted'; sign = ''; }
   else if (t.kind === 'accantonamento') { title = t.note || 'Accantonamento ' + (c?.name || ''); sub = ['Accantonato', c?.name, `${a?.name || '?'} → ${acc(t.toAccountId)?.name || '?'}`].filter(Boolean).join(' · '); cls = ''; sign = '−'; }
-  else { const fromFund = !t.paidBy && t.kind === 'spesa' && isReserve(t.accountId); title = t.note || c?.name || 'Movimento'; sub = [t.paidBy ? 'Pagata da ' + t.paidBy : '', fromFund ? 'Pagato dal fondo' : '', c?.name, t.paidBy ? '' : a?.name].filter(Boolean).join(' · '); cls = t.kind === 'entrata' ? 'pos' : (fromFund || t.paidBy) ? 'muted' : ''; sign = t.kind === 'entrata' ? '+' : '−'; }
+  else { const fromFund = !t.paidBy && t.kind === 'spesa' && isReserve(t.accountId); title = t.note || c?.name || 'Movimento'; sub = [txScope(t) === 'lavoro' ? 'Lavoro' : '', t.paidBy ? 'Pagata da ' + t.paidBy : '', fromFund ? 'Pagato dal fondo' : '', c?.name, t.paidBy ? '' : a?.name].filter(Boolean).join(' · '); cls = t.kind === 'entrata' ? 'pos' : (fromFund || t.paidBy) ? 'muted' : ''; sign = t.kind === 'entrata' ? '+' : '−'; }
   return `<div class="tx" data-act="edit-tx" data-id="${esc(t.id)}" tabindex="0" role="button">${catBadge(c, t.kind)}<div class="tx-main"><b>${esc(title)}</b><small>${esc(sub)}</small></div><div class="tx-amt num ${cls}">${sign}${txCur(t) !== BASE ? moneyC(txOrig(t), txCur(t)) : money(+t.amount)}${txCur(t) !== BASE ? `<small class="muted" style="display:block;font-weight:400;font-size:.75rem">≈ ${money(+t.amount)}</small>` : ''}</div></div>`;
 }
 function txList(list, { group = true } = {}) {
@@ -663,6 +695,8 @@ const sortTx = l => [...l].sort((a, b) => b.date.localeCompare(a.date) || (b.cre
 
 /* ---------- viste ---------- */
 const VIEWS = {};
+const SCOPED_VIEWS = ['panoramica', 'mensile', 'movimenti', 'budget'];
+const scopeBar = () => `<div class="scope-bar"><div class="seg" role="group" aria-label="Mostra">${[['tutto', 'Tutto'], ['lavoro', 'Lavoro'], ['personale', 'Personale']].map(([v, l]) => `<button type="button" data-act="scope" data-v="${v}" aria-pressed="${(S.ui.scope || 'tutto') === v}">${l}</button>`).join('')}</div></div>`;
 VIEWS.mensile = () => {
   const ym = S.ui.month, st = monthStats(ym), prev = monthStats(addMonths(ym, -1));
   const bal = balances(), liquid = sumObj(bal), inv = investTotal(), nw = liquid + inv;
@@ -672,7 +706,7 @@ VIEWS.mensile = () => {
   const today = todayISO(), horizon = isoOf(new Date(Date.now() + 30 * 864e5));
   const upcoming = S.recurring.filter(r => r.active !== false && r.nextDate && r.nextDate <= horizon).sort((a, b) => a.nextDate.localeCompare(b.nextDate)).slice(0, 6);
   const alerts = Object.entries(budgets).filter(([, b]) => +b > 0).map(([cid, b]) => ({ c: cat(cid), b: +b, s: st.byCat[cid] || 0 })).filter(x => x.c && x.s / x.b >= .8).sort((a, b) => b.s / b.b - a.s / a.b);
-  const recent = sortTx(S.transactions).slice(0, 7);
+  const recent = sortTx(S.transactions.filter(inScope)).slice(0, 7);
   return `
   <div class="head"><div><div class="eyebrow">Situazione mensile</div><h1>${ymLabel(ym)}</h1></div>
     <div class="head-actions">${monthNav('month')}<button class="btn primary hide-m" data-act="new-tx">+ Movimento</button></div></div>
@@ -723,7 +757,7 @@ function moreMenu() {
 /* ---------- resoconto annuale vs budget ---------- */
 function yearBudget(year) {
   const budgets = S.settings.budgets || {};
-  const bIds = S.categories.filter(c => c.kind === 'spesa' && annualBudget(c.id) > 0).map(c => c.id);
+  const bIds = S.categories.filter(c => c.kind === 'spesa' && catInScope(c) && annualBudget(c.id) > 0).map(c => c.id);
   const ann = Object.fromEntries(bIds.map(id => [id, annualBudget(id)]));
   const monthlyB = bIds.reduce((s, id) => s + ann[id], 0) / 12;
   const today = todayISO(), cy = today.slice(0, 4);
@@ -732,7 +766,7 @@ function yearBudget(year) {
   const byCat = {}, byMonth = Array(12).fill(0);
   let other = 0;
   for (const t of S.transactions) {
-    if (!isOut(t) || !String(t.date).startsWith(year)) continue;
+    if (!isOut(t) || !inScope(t) || !String(t.date).startsWith(year)) continue;
     const v = +t.amount || 0, m = +t.date.slice(5, 7) - 1;
     if (bIds.includes(t.categoryId)) { byCat[t.categoryId] = (byCat[t.categoryId] || 0) + v; byMonth[m] += v; }
     else other += v;
@@ -804,7 +838,7 @@ VIEWS.movimenti = () => {
 };
 function txListFiltered() {
   const q = S.ui.q.trim().toLowerCase();
-  let l = S.transactions.filter(t => (S.ui.allMonths || ymOf(t.date) === S.ui.month)
+  let l = S.transactions.filter(t => inScope(t) && (S.ui.allMonths || ymOf(t.date) === S.ui.month)
     && (!S.ui.fAcc || t.accountId === S.ui.fAcc || t.toAccountId === S.ui.fAcc)
     && (!S.ui.fCat || t.categoryId === S.ui.fCat)
     && (!S.ui.fKind || t.kind === S.ui.fKind));
@@ -814,16 +848,153 @@ function txListFiltered() {
   return `<div class="panel-h"><h2>${l.length} moviment${l.length === 1 ? 'o' : 'i'}</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill pos num">+${money(inc)}</span><span class="pill num">−${money(exp)}</span></div></div>${txList(l.slice(0, 400))}${l.length > 400 ? `<p class="muted">Mostrati i primi 400. Restringi i filtri per vedere gli altri.</p>` : ''}`;
 }
 
+/* ---------- clienti e pacchetti ---------- */
+const PKG_MONTHS = { pt: [3, 6, 12], coaching: [6, 12] };
+const PKG_STATUS = { attivo: { l: 'Attivo', c: 'work' }, futuro: { l: 'Non iniziato', c: '' }, completato: { l: 'Completato', c: 'pos' }, scaduto: { l: 'Scaduto', c: 'warn' } };
+const pkgLessons = (months, perWeek) => (+months || 0) * 4 * (+perWeek || 0);
+const pkgEnd = p => { if (!p.startDate) return ''; const d = new Date(p.startDate + 'T12:00:00'); d.setMonth(d.getMonth() + (+p.months || 0)); d.setDate(d.getDate() - 1); return isoOf(d); };
+const pkgPaid = p => S.transactions.filter(t => t.packageId === p.id && t.kind === 'entrata').reduce((s, t) => s + (+t.amount || 0), 0);
+const pkgDue = p => Math.max(0, Math.round(((+p.price || 0) - pkgPaid(p)) * 100) / 100);
+const pkgDone = p => (p.log || []).length;
+const pkgStatus = p => { const today = todayISO(), end = pkgEnd(p); if (p.kind === 'pt' && +p.lessons && pkgDone(p) >= +p.lessons) return 'completato'; if (end && end < today) return 'scaduto'; if (p.startDate && p.startDate > today) return 'futuro'; return 'attivo'; };
+const pkgOpen = p => ['attivo', 'futuro'].includes(pkgStatus(p));
+const pkgLabel = p => p.kind === 'coaching' ? `Coaching ${p.months} mesi` : `PT ${p.months} mesi · ${p.perWeek} a settimana`;
+const clientPkgs = id => S.packages.filter(p => p.clientId === id).sort((a, b) => (pkgOpen(b) - pkgOpen(a)) || String(b.startDate).localeCompare(String(a.startDate)));
+const clientsSorted = () => [...S.clients].sort((a, b) => String(a.name).localeCompare(String(b.name), 'it'));
+function pkgHTML(p) {
+  const st = PKG_STATUS[pkgStatus(p)], paid = pkgPaid(p), due = pkgDue(p), price = +p.price || 0, end = pkgEnd(p);
+  let prog;
+  if (p.kind === 'pt') {
+    const tot = +p.lessons || 0, done = pkgDone(p), last = [...(p.log || [])].sort().pop();
+    prog = `<div class="pk-row"><span><b class="num">${done}</b> <span class="muted">di</span> <b class="num">${tot}</b> <span class="muted">lezioni</span></span><span class="muted">${tot - done > 0 ? `${tot - done} rimast${tot - done === 1 ? 'a' : 'e'}` : 'tutte fatte'}${last ? ' · ultima ' + dShort(last) : ''}</span></div>
+      <div class="bar ${done >= tot && tot ? 'done' : ''}"><i style="width:${tot ? Math.min(100, done / tot * 100).toFixed(1) : 0}%"></i></div>`;
+  } else {
+    const today = todayISO(), s0 = new Date(p.startDate + 'T12:00:00'), e0 = new Date(end + 'T12:00:00'), n = new Date(today + 'T12:00:00');
+    const f = p.startDate && end ? Math.max(0, Math.min(1, (n - s0) / (e0 - s0 || 1))) : 0, mNow = Math.min(+p.months, Math.max(0, Math.floor(f * +p.months) + (f < 1 && p.startDate <= today ? 1 : 0)));
+    prog = `<div class="pk-row"><span>${p.startDate > today ? '<span class="muted">Inizia il ' + dShort(p.startDate) + '</span>' : f >= 1 ? '<span class="muted">Percorso concluso</span>' : `<span class="muted">Mese</span> <b class="num">${mNow}</b> <span class="muted">di</span> <b class="num">${p.months}</b>`}</span></div>
+      <div class="bar ${f >= 1 ? 'done' : ''}"><i style="width:${(f * 100).toFixed(1)}%"></i></div>`;
+  }
+  const pay = price ? (due <= 0 ? `<span class="pill pos">Saldato</span>` : `<span class="pill neg num">Da saldare ${money0(due)}</span>`) : `<span class="pill">Prezzo non indicato</span>`;
+  return `<div class="pk ${pkgOpen(p) ? '' : 'ended'}">
+    <div class="pk-top"><span class="pill" style="color:var(--fg)">${p.kind === 'coaching' ? 'Coaching' : 'PT'}</span><b>${p.months} mesi${p.kind === 'pt' ? ` · ${p.perWeek} a settimana` : ''}</b><span class="pill ${st.c}">${st.l}</span></div>
+    <small class="muted">${p.startDate ? `Dal ${dShort(p.startDate)} al ${dShort(end)}` : 'Data di inizio non indicata'}</small>
+    ${prog}
+    <div class="pk-row"><span>${pay}</span>${price ? `<span class="muted num">Pagati ${money0(paid)} su ${money0(price)}</span>` : ''}</div>
+    <div class="pk-act">${p.kind === 'pt' ? `<button class="btn small primary" data-act="lesson-add" data-id="${esc(p.id)}">+ Lezione</button>${pkgDone(p) ? `<button class="btn small ghost" data-act="lesson-undo" data-id="${esc(p.id)}" aria-label="Annulla l'ultima lezione">Annulla ultima</button>` : ''}` : ''}${due > 0 ? `<button class="btn small" data-act="pkg-pay" data-id="${esc(p.id)}">Registra pagamento</button>` : ''}<button class="btn small ghost" data-act="edit-pkg" data-id="${esc(p.id)}">Modifica</button></div>
+  </div>`;
+}
+function clientCards() {
+  const f = S.ui.cFilter || 'attivi', q = (S.ui.cq || '').trim().toLowerCase();
+  let list = clientsSorted();
+  if (f === 'attivi') list = list.filter(c => clientPkgs(c.id).some(pkgOpen));
+  if (f === 'da-saldare') list = list.filter(c => clientPkgs(c.id).some(p => pkgDue(p) > 0));
+  if (q) list = list.filter(c => [c.name, c.phone, c.email, c.notes].join(' ').toLowerCase().includes(q));
+  if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : 'Nessun cliente.'}</p></div>`;
+  return list.map(c => { const ps = clientPkgs(c.id);
+    return `<article class="cl"><div class="cl-h"><div style="min-width:0"><b>${esc(c.name)}</b><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small></div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}">Scheda</button></div>
+      ${ps.length ? ps.map(pkgHTML).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto.</p>'}
+      <button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}" style="align-self:flex-start">+ Pacchetto</button></article>`; }).join('');
+}
+VIEWS.clienti = () => {
+  const today = todayISO(), ym = ymOf(today), soon = isoOf(new Date(Date.now() + 30 * 864e5));
+  const open = S.packages.filter(pkgOpen);
+  const nActive = new Set(open.map(p => p.clientId)).size;
+  const due = S.packages.reduce((s, p) => s + pkgDue(p), 0), nDue = S.packages.filter(p => pkgDue(p) > 0).length;
+  const lessonsM = S.packages.reduce((s, p) => s + (p.log || []).filter(d => ymOf(d) === ym).length, 0);
+  const expiring = open.filter(p => { const e = pkgEnd(p); return e && e >= today && e <= soon; });
+  const f = S.ui.cFilter || 'attivi';
+  return `
+  <div class="head"><div><div class="eyebrow">Clienti</div><h1>Pacchetti e lezioni</h1></div>
+    <div class="head-actions"><button class="btn" data-act="new-pkg">+ Pacchetto</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
+  <section class="kpis">
+    <div class="kpi"><span class="eyebrow">Clienti attivi</span><span class="v num">${nActive}</span><span class="s">${open.length} pacchett${open.length === 1 ? 'o' : 'i'} in corso</span></div>
+    <div class="kpi"><span class="eyebrow">Da incassare</span><span class="v num ${due > 0 ? 'neg' : ''}">${money0(due)}</span><span class="s">${nDue ? `${nDue} pacchett${nDue === 1 ? 'o' : 'i'} da saldare` : 'Tutto saldato'}</span></div>
+    <div class="kpi"><span class="eyebrow">Lezioni a ${MESI[+ym.slice(5) - 1].toLowerCase()}</span><span class="v num">${lessonsM}</span><span class="s">Lezioni PT registrate nel mese</span></div>
+    <div class="kpi"><span class="eyebrow">In scadenza</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · entro 30 giorni' : 'Nessun pacchetto entro 30 giorni'}</span></div>
+  </section>
+  <div class="cl-tools">
+    <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
+    <div class="seg" role="group" aria-label="Filtra clienti" style="min-width:min(100%,340px)">${[['attivi', 'In corso'], ['da-saldare', 'Da saldare'], ['tutti', 'Tutti']].map(([v, l]) => `<button type="button" data-act="cfilter" data-v="${v}" aria-pressed="${f === v}">${l}</button>`).join('')}</div>
+  </div>
+  ${S.clients.length ? `<div class="cl-list" id="cl-list">${clientCards()}</div>` : `<section class="panel"><div class="empty"><p>Qui tieni traccia dei clienti: pacchetti PT e Coaching, lezioni fatte e pagamenti.</p><button class="btn primary" data-act="new-client">Aggiungi il primo cliente</button></div></section>`}`;
+};
+function clientForm(c) {
+  const isNew = !c; c = c || {};
+  const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id);
+  openForm({
+    title: isNew ? 'Nuovo cliente' : c.name,
+    fields: [
+      { id: 'name', label: 'Nome e cognome', value: c.name || '', required: true },
+      [{ id: 'phone', label: 'Telefono', type: 'tel', value: c.phone || '' }, { id: 'email', label: 'Email', type: 'email', value: c.email || '' }],
+      { id: 'notes', label: 'Note', value: c.notes || '', placeholder: 'Obiettivi, infortuni, preferenze…' }
+    ],
+    validate: v => !v.name.trim() ? 'Scrivi il nome del cliente.' : '',
+    async onSubmit(v) {
+      const id = c.id || uid();
+      const ok = await put('clients', id, { ...strip(c), name: v.name.trim(), phone: v.phone.trim(), email: v.email.trim(), notes: v.notes.trim(), createdAt: c.createdAt || Date.now() });
+      if (ok) { toast(isNew ? 'Cliente aggiunto' : 'Cliente aggiornato'); if (isNew) setTimeout(() => pkgForm(null, id), 50); }
+      return ok;
+    },
+    deleteLabel: ps.length ? 'Elimina cliente e pacchetti' : 'Elimina cliente',
+    onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); const ok = await del('clients', c.id); ok && toast(ps.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
+  });
+}
+function pkgForm(p, clientId) {
+  const isNew = !p;
+  if (!S.clients.length) { toast('Aggiungi prima un cliente.', true); return; }
+  p = p || { kind: 'pt', months: 3, perWeek: 1, startDate: todayISO(), clientId: clientId || clientsSorted()[0].id };
+  const monthOpts = k => PKG_MONTHS[k].map(m => ({ v: String(m), l: m + ' mesi' }));
+  openForm({
+    title: isNew ? 'Nuovo pacchetto' : 'Modifica pacchetto',
+    fields: [
+      { id: 'clientId', label: 'Cliente', type: 'select', value: p.clientId, options: clientsSorted().map(c => ({ v: c.id, l: c.name })) },
+      { id: 'kind', type: 'seg', label: 'Tipo', value: p.kind, options: [{ v: 'pt', l: 'PT' }, { v: 'coaching', l: 'Coaching' }] },
+      [{ id: 'months', label: 'Durata', type: 'select', value: String(p.months), options: monthOpts(p.kind) }, { id: 'perWeek', label: 'Lezioni a settimana', type: 'select', value: String(p.perWeek || 1), options: [{ v: '1', l: '1 a settimana' }, { v: '2', l: '2 a settimana' }] }],
+      [{ id: 'lessons', label: 'Lezioni incluse', num: true, value: p.lessons ?? pkgLessons(p.months, p.perWeek), hint: 'Mesi × 4 × lezioni a settimana. Puoi cambiarlo.' }, { id: 'startDate', label: 'Data di inizio', type: 'date', value: p.startDate || todayISO(), required: true }],
+      [{ id: 'price', label: 'Prezzo del pacchetto (€)', num: true, value: p.price ?? '', placeholder: '0,00' }, { id: 'done', label: 'Lezioni già fatte', num: true, value: pkgDone(p), hint: isNew ? 'Se il pacchetto è già iniziato' : 'Modificalo solo per correggere' }],
+      { id: 'notes', label: 'Note', value: p.notes || '' }
+    ],
+    onChange(v, form, ev) {
+      const pt = v.kind === 'pt', nm = ev?.target?.name;
+      showField(form, 'perWeek', pt); showField(form, 'lessons', pt); showField(form, 'done', pt);
+      const ms = form.elements.months;
+      if (ms.dataset.kind !== v.kind) { const keep = ms.value; ms.innerHTML = monthOpts(v.kind).map(o => `<option value="${o.v}">${o.l}</option>`).join(''); ms.value = PKG_MONTHS[v.kind].includes(+keep) ? keep : String(PKG_MONTHS[v.kind][0]); ms.dataset.kind = v.kind; }
+      if (nm === 'lessons') form.dataset.lessonsTouched = '1';
+      if (['months', 'perWeek', 'kind'].includes(nm) && !form.dataset.lessonsTouched) form.elements.lessons.value = pkgLessons(ms.value, v.perWeek);
+    },
+    validate(v) {
+      if (!v.startDate) return 'Indica la data di inizio.';
+      if (v.price && !(parseNum(v.price) >= 0)) return 'Il prezzo non è un numero valido.';
+      if (v.kind === 'pt' && !(parseNum(v.lessons) > 0)) return 'Indica quante lezioni sono incluse.';
+    },
+    async onSubmit(v) {
+      const pt = v.kind === 'pt', n = x => { const k = parseNum(x); return Number.isFinite(k) ? k : 0; };
+      let log = [...(p.log || [])].sort();
+      const want = pt ? Math.max(0, Math.round(n(v.done))) : 0;
+      if (pt && want !== log.length) { if (want < log.length) log = log.slice(0, want); else while (log.length < want) log.unshift(v.startDate); }
+      const doc = { ...strip(p), clientId: v.clientId, kind: v.kind, months: +v.months, perWeek: pt ? +v.perWeek : 0, lessons: pt ? Math.round(n(v.lessons)) : 0, startDate: v.startDate, price: Math.round(n(v.price) * 100) / 100, notes: v.notes.trim(), log, createdAt: p.createdAt || Date.now() };
+      const ok = await put('packages', p.id || uid(), doc); ok && toast(isNew ? 'Pacchetto aggiunto' : 'Pacchetto aggiornato'); return ok;
+    },
+    deleteLabel: 'Elimina pacchetto',
+    onDelete: isNew ? null : async () => { const ok = await del('packages', p.id); ok && toast('Pacchetto eliminato. I pagamenti restano tra le entrate.'); return ok; }
+  });
+}
+function pkgPay(p) {
+  if (!p) return;
+  const c = byId('clients', p.clientId), catId = p.kind === 'coaching' ? 'c-coaching' : 'c-pt';
+  txForm(null, { kind: 'entrata', categoryId: cat(catId) ? catId : '', amount: pkgDue(p) || '', note: `${p.kind === 'coaching' ? 'Coaching' : 'Pacchetto PT'} ${p.months} mesi · ${c?.name || ''}`, scope: 'lavoro', packageId: p.id, clientId: p.clientId });
+}
+
 function annualBudget(id) {
   const yb = S.settings.budgetsYear || {}, mb = S.settings.budgets || {};
   return +yb[id] > 0 ? +yb[id] : (+mb[id] > 0 ? +mb[id] * 12 : 0);
 }
 const budgetModeSeg = () => `<div class="seg" role="group" aria-label="Tipo di budget" style="min-width:210px"><button type="button" data-act="budget-mode" data-v="mese" aria-pressed="${S.ui.budgetMode !== 'anno'}">Mensile</button><button type="button" data-act="budget-mode" data-v="anno" aria-pressed="${S.ui.budgetMode === 'anno'}">Annuale</button></div>`;
 function budgetYearView() {
-  const year = S.ui.budgetYear, y = yearBudget(year), cats = catsOf('spesa');
+  const year = S.ui.budgetYear, y = yearBudget(year), cats = scopedCats('spesa');
   const yb = S.settings.budgetsYear || {}, mb = S.settings.budgets || {};
   const spentAll = {};
-  for (const t of S.transactions) if (isOut(t) && String(t.date).startsWith(year)) spentAll[t.categoryId] = (spentAll[t.categoryId] || 0) + (+t.amount || 0);
+  for (const t of S.transactions) if (isOut(t) && inScope(t) && String(t.date).startsWith(year)) spentAll[t.categoryId] = (spentAll[t.categoryId] || 0) + (+t.amount || 0);
   const totB = y.yearB, totS = y.spent, left = totB - totS;
   const rows = cats.map(c => {
     const own = +yb[c.id] > 0, b = annualBudget(c.id), s = spentAll[c.id] || 0, r = b ? s / b : 0;
@@ -852,7 +1023,7 @@ function budgetYearView() {
 VIEWS.budget = () => {
   if (S.ui.budgetMode === 'anno') return budgetYearView();
   const ym = S.ui.budgetMonth, st = monthStats(ym), budgets = S.settings.budgets || {};
-  const cats = catsOf('spesa');
+  const cats = scopedCats('spesa');
   const totB = cats.reduce((s, c) => s + (+budgets[c.id] || 0), 0), totS = cats.reduce((s, c) => s + (st.byCat[c.id] || 0), 0);
   const isCur = ym === ymOf(todayISO());
   const [y, m] = ym.split('-').map(Number), dim = new Date(y, m, 0).getDate(), dayN = isCur ? new Date().getDate() : dim;
@@ -953,7 +1124,7 @@ VIEWS.impostazioni = () => {
       ${S.accounts.length ? [...S.accounts].sort((a, b) => !!a.archived - !!b.archived || a.name.localeCompare(b.name)).map(a => `<div class="list-row"><div class="l"><i class="dot" style="background:${esc(accColor(a))}"></i><span>${esc(a.name)}</span>${a.archived ? '<span class="pill">Archiviato</span>' : ''}</div><button class="btn small ghost" data-act="edit-acc" data-id="${esc(a.id)}">Modifica</button></div>`).join('') : '<p class="muted">Nessun conto.</p>'}
     </section>
     <section class="panel"><div class="panel-h"><h2>Categorie</h2><button class="btn small" data-act="new-cat">+ Categoria</button></div>
-      ${['spesa', 'entrata'].map(k => `<h3 style="margin:6px 0">${k === 'spesa' ? 'Spese' : 'Entrate'}</h3><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${catsOf(k).map(c => `<button class="pill" style="border:0;cursor:pointer" data-act="edit-cat" data-id="${esc(c.id)}"><i class="dot" style="background:${esc(c.color)}"></i>${esc(c.name)}</button>`).join('') || '<span class="muted">Nessuna</span>'}</div>`).join('')}
+      ${[['spesa', 'lavoro'], ['spesa', 'personale'], ['entrata', 'lavoro'], ['entrata', 'personale']].map(([k, sc]) => `<h3 style="margin:6px 0">${k === 'spesa' ? 'Spese' : 'Entrate'} · ${SCOPES[sc].toLowerCase()}</h3><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${catsOf(k).filter(c => catScope(c) === sc).map(c => `<button class="pill" style="border:0;cursor:pointer" data-act="edit-cat" data-id="${esc(c.id)}"><i class="dot" style="background:${esc(c.color)}"></i>${esc(c.name)}</button>`).join('') || '<span class="muted">Nessuna</span>'}</div>`).join('')}
     </section>
     <section class="panel"><div class="panel-h"><h2>Regole di categorizzazione</h2><button class="btn small" data-act="new-rule">+ Regola</button></div>
       <p class="muted" style="margin:0 0 8px;font-size:.88rem">Quando importi un CSV, se la descrizione contiene la parola chiave, il movimento riceve la categoria indicata.</p>
@@ -963,7 +1134,7 @@ VIEWS.impostazioni = () => {
       <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
         <p class="muted" style="margin:0;font-size:.88rem">Importa l'estratto conto della tua banca in CSV o Excel: riconosco date e importi in formato italiano e salto i movimenti già presenti.</p>
         <button class="btn primary" data-act="import">Importa CSV o Excel</button>
-        <p class="muted" style="margin:6px 0 0;font-size:.88rem">Scarica un file Excel con movimenti, conti, categorie e budget, proprietà e investimenti, ognuno nel suo foglio. Oppure solo i movimenti in CSV.</p>
+        <p class="muted" style="margin:6px 0 0;font-size:.88rem">Scarica un file Excel con movimenti, conti, categorie e budget, clienti e investimenti, ognuno nel suo foglio. Oppure solo i movimenti in CSV.</p>
         <button class="btn" data-act="export-xlsx" ${typeof S.dl === 'undefined' || S.dl || !(window.claude && window.claude.use) ? '' : 'disabled title="Download non disponibile in questa vista"'}>Esporta in Excel (.xlsx)</button>
         <button class="btn" data-act="export">Esporta movimenti (CSV)</button>
       </div>
@@ -1098,6 +1269,7 @@ function openForm(o) {
 }
 function formValues(form) { const o = {}; for (const el of form.elements) { if (!el.name) continue; if (el.type === 'checkbox' && el.dataset.multi !== undefined) { (o[el.name] = o[el.name] || []); if (el.checked) o[el.name].push(el.value); } else if (el.type === 'checkbox') o[el.name] = el.checked; else if (el.type === 'radio') { if (el.checked) o[el.name] = el.value; } else o[el.name] = el.value; } return o; }
 function closeModal() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; formState = null; }
+const setSeg = (form, id, val) => { if (!form.elements[id]) return; form.elements[id].value = val; $$(`[data-seg="${id}"]`, form).forEach(x => x.setAttribute('aria-pressed', x.dataset.v === val)); };
 const showField = (form, id, on) => { const f = form.querySelector(`[data-f="${id}"]`); if (f) f.hidden = !on; };
 
 const accOptions = () => activeAccounts().map(a => ({ v: a.id, l: a.name }));
@@ -1116,6 +1288,7 @@ function txForm(t, preset) {
       { id: 'note', label: 'Descrizione', value: t.note || '', placeholder: 'Es. Spesa Esselunga' },
       [{ id: 'accountId', label: 'Conto', type: 'select', value: t.accountId, options: accs }, { id: 'toAccountId', label: 'Verso il conto', type: 'select', value: t.toAccountId || (accs.find(a => a.v !== t.accountId) || accs[0]).v, options: accs }],
       { id: 'categoryId', label: 'Categoria', type: 'select', value: t.categoryId || '', options: [{ v: '', l: '—' }] },
+      { id: 'scope', type: 'seg', label: 'Ambito', value: t.scope || catScope(cat(t.categoryId)), options: [{ v: 'lavoro', l: 'Lavoro' }, { v: 'personale', l: 'Personale' }] },
       { id: 'byOther', label: 'Pagata da un\'altra persona: la registro per tenerne traccia, ma non conta nelle mie spese né nei miei conti', type: 'checkbox', value: !!t.paidBy },
       { id: 'paidBy', label: 'Chi ha pagato', value: t.paidBy || '', placeholder: 'Es. Marco, i miei genitori, l\'inquilino' }
     ],
@@ -1152,6 +1325,9 @@ function txForm(t, preset) {
         if (opts.some(o => o.v === keep)) sel.value = keep;
         sel.dataset.kind = v.kind;
       }
+      showField(form, 'scope', !g);
+      if (ev && ev.target && ev.target.name === 'scope') form.dataset.scopeTouched = '1';
+      if (!form.dataset.scopeTouched && !t.scope && (!ev || ['categoryId', 'kind'].includes(ev.target?.name))) setSeg(form, 'scope', catScope(cat(sel.value)));
     },
     validate(v) {
       const a = parseNum(v.amount);
@@ -1168,6 +1344,8 @@ function txForm(t, preset) {
       if (v.kind === 'giroconto') doc.toAccountId = v.toAccountId; else if (v.kind === 'accantonamento') { doc.toAccountId = v.toAccountId; doc.categoryId = v.categoryId || ''; } else { doc.categoryId = v.categoryId || ''; }
       if (v.kind === 'spesa' && v.byOther) doc.paidBy = String(v.paidBy).trim();
       if (v.currency !== BASE) { doc.currency = v.currency; doc.origAmount = orig; doc.rate = rate; }
+      if (v.kind !== 'giroconto') doc.scope = v.scope || 'personale';
+      if (t.packageId) { doc.packageId = t.packageId; doc.clientId = t.clientId || ''; }
       if (t.importKey) doc.importKey = t.importKey;
       if (t.demo) doc.demo = true;
       const ok = await put('transactions', t.id || uid(), doc);
@@ -1210,11 +1388,12 @@ function catForm(c) {
     fields: [
       { id: 'kind', type: 'seg', label: 'Tipo', value: c.kind, options: [{ v: 'spesa', l: 'Spesa' }, { v: 'entrata', l: 'Entrata' }] },
       { id: 'name', label: 'Nome', value: c.name || '', required: true },
+      { id: 'scope', type: 'seg', label: 'Ambito', value: catScope(c), options: [{ v: 'lavoro', l: 'Lavoro' }, { v: 'personale', l: 'Personale' }] },
       { id: 'color', label: 'Colore', type: 'color', value: c.color, palette: MACARON },
       { id: 'icon', label: 'Icona', type: 'icon', value: catIconKey(c) }
     ],
     validate: v => !v.name.trim() ? 'Dai un nome alla categoria.' : '',
-    async onSubmit(v) { const ok = await put('categories', c.id || uid(), { ...strip(c), kind: v.kind, name: v.name.trim(), color: v.color || c.color, icon: v.icon || '' }); ok && toast('Categoria salvata'); return ok; },
+    async onSubmit(v) { const ok = await put('categories', c.id || uid(), { ...strip(c), kind: v.kind, name: v.name.trim(), scope: v.scope || 'personale', color: v.color || c.color, icon: v.icon || '' }); ok && toast('Categoria salvata'); return ok; },
     onDelete: isNew ? null : async () => {
       if (S.transactions.some(t => t.categoryId === c.id)) { toast('Ci sono movimenti con questa categoria: spostali prima di eliminarla.', true); return false; }
       const ok = await del('categories', c.id); ok && toast('Categoria eliminata'); return ok;
@@ -1328,7 +1507,7 @@ async function exportXLSX() {
     'Importo (€)': r2((t.kind === 'spesa' || t.kind === 'accantonamento') ? -t.amount : +t.amount),
     'Valuta': txCur(t), 'Importo originale': r2(txOrig(t)), 'Cambio (€ per unità)': t.rate && txCur(t) !== BASE ? +(+t.rate).toFixed(6) : 1,
     'Conto': t.paidBy ? '' : (acc(t.accountId)?.name || ''), 'Verso conto / fondo': acc(t.toAccountId)?.name || '',
-    'Pagata da': t.paidBy || ''
+    'Pagata da': t.paidBy || '', 'Ambito': t.kind === 'giroconto' ? '' : SCOPES[txScope(t)]
   }));
   const balN = balancesNative(), bal = balances();
   const conti = S.accounts.map(a => ({ 'Nome': a.name, 'Tipo': ACC_TYPES[a.type] || a.type, 'Valuta': a.currency || BASE, 'Saldo iniziale': r2(a.openingBalance), 'Saldo attuale': r2(balN[a.id]), 'Saldo in €': r2(bal[a.id]), 'Fondo di accantonamento': a.reserve ? 'Sì' : 'No', 'Archiviato': a.archived ? 'Sì' : 'No' }));
@@ -1339,6 +1518,8 @@ async function exportXLSX() {
   add('Movimenti', mov, { 'Data': '', 'Tipo': '', 'Descrizione': '', 'Categoria': '', 'Importo (€)': '' });
   add('Conti', conti, { 'Nome': '' });
   add('Categorie', cats, { 'Nome': '' });
+  const pk = S.packages.map(p => ({ 'Cliente': byId('clients', p.clientId)?.name || '', 'Pacchetto': pkgLabel(p), 'Inizio': d(p.startDate), 'Fine': d(pkgEnd(p)), 'Lezioni fatte': p.kind === 'pt' ? pkgDone(p) : '', 'Lezioni totali': p.kind === 'pt' ? +p.lessons || 0 : '', 'Prezzo (€)': r2(p.price), 'Pagato (€)': r2(pkgPaid(p)), 'Da saldare (€)': r2(pkgDue(p)), 'Stato': PKG_STATUS[pkgStatus(p)].l }));
+  if (pk.length) add('Clienti', pk, { 'Cliente': '' });
   if (inv.length) add('Investimenti', inv, { 'Nome': '' });
   const buf = X.write(wb, { bookType: 'xlsx', type: 'array', cellDates: true });
   if (await saveFile(`luludex-${todayISO()}.xlsx`, buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) toast('File Excel esportato');
@@ -1542,6 +1723,14 @@ document.addEventListener('click', e => {
   if (a === 'fx-refresh') return fxRefresh(true);
   if (a === 'fx-edit') return rateForm(t.dataset.cur);
   if (a === 'fx-add') return openForm({ title: 'Aggiungi una valuta', fields: [{ id: 'cur', label: 'Valuta', type: 'select', options: curOptions().filter(o => o.v !== BASE) }], async onSubmit(v) { setTimeout(() => rateForm(v.cur), 0); return true; } });
+  if (a === 'scope') { S.ui.scope = t.dataset.v; try { localStorage.setItem('luludex.scope', S.ui.scope); } catch (e) {} render(); return; }
+  if (a === 'new-client') return clientForm();
+  if (a === 'edit-client') return clientForm(byId('clients', id));
+  if (a === 'new-pkg') return pkgForm(null, t.dataset.client);
+  if (a === 'edit-pkg') return pkgForm(byId('packages', id));
+  if (a === 'lesson-add' || a === 'lesson-undo') { const p = byId('packages', id); if (!p) return; const log = [...(p.log || [])].sort(); if (a === 'lesson-add') log.push(todayISO()); else log.pop(); put('packages', p.id, { ...strip(p), log }); toast(a === 'lesson-add' ? `Lezione registrata (${log.length}/${+p.lessons || '?'})` : 'Ultima lezione annullata'); return; }
+  if (a === 'pkg-pay') return pkgPay(byId('packages', id));
+  if (a === 'cfilter') { S.ui.cFilter = t.dataset.v; render(); return; }
   if (a === 'budget-mode') { S.ui.budgetMode = t.dataset.v; render(); return; }
   if (a === 'ykey') { S.ui[t.dataset.key] = String(+S.ui[t.dataset.key] + +t.dataset.d); render(); return; }
   if (a === 'year') { S.ui.year = String(+S.ui.year + +t.dataset.d); render(); return; }
@@ -1589,6 +1778,7 @@ $('#modal').addEventListener('mousedown', e => { if (e.target.id === 'modal') cl
 let qT;
 document.addEventListener('input', e => {
   const el = e.target;
+  if (el.id === 'c-q') { S.ui.cq = el.value; clearTimeout(qT); qT = setTimeout(() => { const l = $('#cl-list'); if (l) l.innerHTML = clientCards(); }, 150); }
   if (el.id === 'f-q') { S.ui.q = el.value; clearTimeout(qT); qT = setTimeout(() => { const l = $('#txlist'); if (l) l.innerHTML = txListFiltered(); }, 150); }
 });
 document.addEventListener('change', async e => {
@@ -1632,12 +1822,18 @@ window.addEventListener('offline', () => { netDown = true; updateSync(); schedul
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.user) refresh(); });
 
 /* ---------- configurazione e accesso ---------- */
+// [id, nome, tipo, ambito]
 const DEFAULT_CATS = [
-  ['c-casa', 'Casa e affitto', 'spesa'], ['c-spesa', 'Spesa alimentare', 'spesa'], ['c-rist', 'Ristoranti e bar', 'spesa'], ['c-trasp', 'Trasporti', 'spesa'],
-  ['c-auto', 'Auto e carburante', 'spesa'], ['c-bollette', 'Bollette e utenze', 'spesa'], ['c-salute', 'Salute', 'spesa'], ['c-svago', 'Svago', 'spesa'], ['c-viaggi', 'Viaggi', 'spesa'],
-  ['c-abbon', 'Abbonamenti', 'spesa'], ['c-shop', 'Shopping', 'spesa'], ['c-tasse', 'Tasse e commissioni', 'spesa'], ['c-mutuo', 'Mutuo', 'spesa'], ['c-condominio', 'Spese condominiali', 'spesa'], ['c-assic-casa', 'Assicurazione casa', 'spesa'], ['c-manut', 'Manutenzione casa', 'spesa'], ['c-imu', 'IMU e tasse casa', 'spesa'], ['c-altro-s', 'Altro', 'spesa'],
-  ['c-stip', 'Stipendio', 'entrata'], ['c-bonus', 'Bonus e premi', 'entrata'], ['c-rend', 'Rendite e dividendi', 'entrata'], ['c-rimb', 'Rimborsi', 'entrata'], ['c-altro-e', 'Altro', 'entrata']
+  ['c-pt', 'PT', 'entrata', 'lavoro'], ['c-coaching', 'Coaching', 'entrata', 'lavoro'], ['c-prima-visita', 'Prima visita', 'entrata', 'lavoro'], ['c-visita-ctrl', 'Visita di controllo', 'entrata', 'lavoro'],
+  ['c-rimb', 'Rimborsi', 'entrata', 'personale'], ['c-altro-e', 'Altro', 'entrata', 'personale'],
+  ['c-l-sala', 'Affitto sala e palestra', 'spesa', 'lavoro'], ['c-l-attrezz', 'Attrezzatura', 'spesa', 'lavoro'], ['c-l-form', 'Formazione e corsi', 'spesa', 'lavoro'], ['c-l-soft', 'Software e app', 'spesa', 'lavoro'],
+  ['c-l-mkt', 'Marketing e pubblicità', 'spesa', 'lavoro'], ['c-l-comm', 'Commercialista', 'spesa', 'lavoro'], ['c-l-tasse', 'Tasse e contributi', 'spesa', 'lavoro'], ['c-l-abb', 'Abbigliamento tecnico', 'spesa', 'lavoro'], ['c-l-altro', 'Altre spese di lavoro', 'spesa', 'lavoro'],
+  ['c-casa', 'Casa e affitto', 'spesa', 'personale'], ['c-spesa', 'Spesa alimentare', 'spesa', 'personale'], ['c-rist', 'Ristoranti e bar', 'spesa', 'personale'], ['c-trasp', 'Trasporti', 'spesa', 'personale'],
+  ['c-auto', 'Auto e carburante', 'spesa', 'personale'], ['c-bollette', 'Bollette e utenze', 'spesa', 'personale'], ['c-salute', 'Salute', 'spesa', 'personale'], ['c-svago', 'Svago', 'spesa', 'personale'], ['c-viaggi', 'Viaggi', 'spesa', 'personale'],
+  ['c-abbon', 'Abbonamenti', 'spesa', 'personale'], ['c-shop', 'Shopping', 'spesa', 'personale'], ['c-tasse', 'Tasse e commissioni', 'spesa', 'personale'], ['c-altro-s', 'Altro', 'spesa', 'personale']
 ];
+// categorie della versione precedente che non servono più (eliminate solo se non usate)
+const OLD_CATS = ['c-mutuo', 'c-condominio', 'c-assic-casa', 'c-manut', 'c-imu', 'c-stip', 'c-bonus', 'c-rend'];
 function getConfig() {
   const c = window.LULUDEX_FIREBASE || {}, l = LS.get('luludex.firebase', {});
   const cfg = (c.apiKey && c.projectId) ? c : l;

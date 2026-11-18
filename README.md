@@ -2,7 +2,7 @@
 
 Luludex is a personal finance web app (Italian UI) that installs on your phone like a normal app and syncs across devices through your own free Firebase project.
 
-Modules: accounts (also in foreign currencies), transactions, transfers, tax set-asides (accantonamenti), CSV and Excel import/export, monthly and annual budget, expenses paid by other people, net worth and investments, savings goals, recurring items, full JSON backup.
+Modules: work vs personal tracking on every transaction (with a Tutto / Lavoro / Personale switch), clients with PT and Coaching packages (lessons done, payments in instalments, amount still due), accounts (also in foreign currencies), transactions, transfers, tax set-asides (accantonamenti), CSV and Excel import/export, monthly and annual budget, net worth and investments, savings goals, recurring items, full JSON backup.
 
 ## Current status: local mode (no database)
 
