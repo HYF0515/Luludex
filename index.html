@@ -352,8 +352,9 @@ const catsOf = kind => S.categories.filter(c => c.kind === kind).sort((a, b) => 
 const SCOPES = { lavoro: 'Lavoro', personale: 'Personale' };
 const catScope = c => c?.scope === 'lavoro' ? 'lavoro' : 'personale';
 const txScope = t => t.scope || catScope(cat(t.categoryId));
-const inScope = t => !S.ui.scope || S.ui.scope === 'tutto' || t.kind === 'giroconto' || txScope(t) === S.ui.scope;
-const catInScope = c => !S.ui.scope || S.ui.scope === 'tutto' || catScope(c) === S.ui.scope;
+// Le entrate non sono divise tra lavoro e personale: il filtro vale solo per le spese.
+const inScope = t => !S.ui.scope || S.ui.scope === 'tutto' || t.kind === 'giroconto' || t.kind === 'entrata' || txScope(t) === S.ui.scope;
+const catInScope = c => !S.ui.scope || S.ui.scope === 'tutto' || c?.kind === 'entrata' || catScope(c) === S.ui.scope;
 const scopedCats = kind => catsOf(kind).filter(catInScope);
 const isDemo = () => [...COLS].some(c => S[c].some(x => x.demo));
 
@@ -680,7 +681,7 @@ function txRow(t) {
   let title, sub, cls, sign;
   if (t.kind === 'giroconto') { title = t.note || 'Giroconto'; sub = `${a?.name || '?'} → ${acc(t.toAccountId)?.name || '?'}`; cls = 'muted'; sign = ''; }
   else if (t.kind === 'accantonamento') { title = t.note || 'Accantonamento ' + (c?.name || ''); sub = ['Accantonato', c?.name, `${a?.name || '?'} → ${acc(t.toAccountId)?.name || '?'}`].filter(Boolean).join(' · '); cls = ''; sign = '−'; }
-  else { const fromFund = !t.paidBy && t.kind === 'spesa' && isReserve(t.accountId); title = t.note || c?.name || 'Movimento'; sub = [txScope(t) === 'lavoro' ? 'Lavoro' : '', t.clientId ? byId('clients', t.clientId)?.name : '', t.paidBy ? 'Pagata da ' + t.paidBy : '', fromFund ? 'Pagato dal fondo' : '', c?.name, t.paidBy ? '' : a?.name].filter(Boolean).join(' · '); cls = t.kind === 'entrata' ? 'pos' : (fromFund || t.paidBy) ? 'muted' : ''; sign = t.kind === 'entrata' ? '+' : '−'; }
+  else { const fromFund = !t.paidBy && t.kind === 'spesa' && isReserve(t.accountId); title = t.note || c?.name || 'Movimento'; sub = [t.kind !== 'entrata' && txScope(t) === 'lavoro' ? 'Lavoro' : '', t.clientId ? byId('clients', t.clientId)?.name : '', t.paidBy ? 'Pagata da ' + t.paidBy : '', fromFund ? 'Pagato dal fondo' : '', c?.name, t.paidBy ? '' : a?.name].filter(Boolean).join(' · '); cls = t.kind === 'entrata' ? 'pos' : (fromFund || t.paidBy) ? 'muted' : ''; sign = t.kind === 'entrata' ? '+' : '−'; }
   return `<div class="tx" data-act="edit-tx" data-id="${esc(t.id)}" tabindex="0" role="button">${catBadge(c, t.kind)}<div class="tx-main"><b>${esc(title)}</b><small>${esc(sub)}</small></div><div class="tx-amt num ${cls}">${sign}${txCur(t) !== BASE ? moneyC(txOrig(t), txCur(t)) : money(+t.amount)}${txCur(t) !== BASE ? `<small class="muted" style="display:block;font-weight:400;font-size:.75rem">≈ ${money(+t.amount)}</small>` : ''}</div></div>`;
 }
 function txList(list, { group = true } = {}) {
@@ -1294,7 +1295,7 @@ VIEWS.impostazioni = () => {
       ${S.accounts.length ? [...S.accounts].sort((a, b) => !!a.archived - !!b.archived || a.name.localeCompare(b.name)).map(a => `<div class="list-row"><div class="l"><i class="dot" style="background:${esc(accColor(a))}"></i><span>${esc(a.name)}</span>${a.archived ? '<span class="pill">Archiviato</span>' : ''}</div><button class="btn small ghost" data-act="edit-acc" data-id="${esc(a.id)}">Modifica</button></div>`).join('') : '<p class="muted">Nessun conto.</p>'}
     </section>
     <section class="panel"><div class="panel-h"><h2>Categorie</h2><button class="btn small" data-act="new-cat">+ Categoria</button></div>
-      ${[['spesa', 'lavoro'], ['spesa', 'personale'], ['entrata', 'lavoro'], ['entrata', 'personale']].map(([k, sc]) => `<h3 style="margin:6px 0">${k === 'spesa' ? 'Spese' : 'Entrate'} · ${SCOPES[sc].toLowerCase()}</h3><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${catsOf(k).filter(c => catScope(c) === sc).map(c => `<button class="pill" style="border:0;cursor:pointer" data-act="edit-cat" data-id="${esc(c.id)}"><i class="dot" style="background:${esc(c.color)}"></i>${esc(c.name)}</button>`).join('') || '<span class="muted">Nessuna</span>'}</div>`).join('')}
+      ${[['spesa', 'lavoro'], ['spesa', 'personale'], ['entrata', '']].map(([k, sc]) => `<h3 style="margin:6px 0">${k === 'spesa' ? 'Spese · ' + SCOPES[sc].toLowerCase() : 'Entrate'}</h3><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${catsOf(k).filter(c => !sc || catScope(c) === sc).map(c => `<button class="pill" style="border:0;cursor:pointer" data-act="edit-cat" data-id="${esc(c.id)}"><i class="dot" style="background:${esc(c.color)}"></i>${esc(c.name)}</button>`).join('') || '<span class="muted">Nessuna</span>'}</div>`).join('')}
     </section>
     <section class="panel"><div class="panel-h"><h2>Regole di categorizzazione</h2><button class="btn small" data-act="new-rule">+ Regola</button></div>
       <p class="muted" style="margin:0 0 8px;font-size:.88rem">Quando importi un CSV, se la descrizione contiene la parola chiave, il movimento riceve la categoria indicata.</p>
@@ -1497,11 +1498,11 @@ function txForm(t, preset) {
         if (opts.some(o => o.v === keep)) sel.value = keep;
         sel.dataset.kind = v.kind;
       }
-      showField(form, 'scope', !g);
+      showField(form, 'scope', !g && v.kind !== 'entrata');
       if (ev && ev.target && ev.target.name === 'scope') form.dataset.scopeTouched = '1';
       if (!form.dataset.scopeTouched && !t.scope && (!ev || ['categoryId', 'kind'].includes(ev.target?.name))) setSeg(form, 'scope', catScope(cat(sel.value)));
       // entrate di lavoro: cliente e pacchetto/visita a cui si riferiscono
-      const workIn = v.kind === 'entrata' && form.elements.scope.value === 'lavoro', cSel = form.elements.clientId, lSel = form.elements.link, nm = ev?.target?.name;
+      const workIn = v.kind === 'entrata', cSel = form.elements.clientId, lSel = form.elements.link, nm = ev?.target?.name;
       showField(form, 'clientId', workIn && S.clients.length > 0); showField(form, 'link', workIn && !!cSel.value);
       if (nm === 'link') form.dataset.linkTouched = '1';
       if (lSel.dataset.client !== cSel.value) {
@@ -1527,8 +1528,8 @@ function txForm(t, preset) {
       if (v.kind === 'giroconto') doc.toAccountId = v.toAccountId; else if (v.kind === 'accantonamento') { doc.toAccountId = v.toAccountId; doc.categoryId = v.categoryId || ''; } else { doc.categoryId = v.categoryId || ''; }
       if (v.kind === 'spesa' && v.byOther) doc.paidBy = String(v.paidBy).trim();
       if (v.currency !== BASE) { doc.currency = v.currency; doc.origAmount = orig; doc.rate = rate; }
-      if (v.kind !== 'giroconto') doc.scope = v.scope || 'personale';
-      if (v.kind === 'entrata' && v.scope === 'lavoro' && v.clientId) {
+      if (v.kind === 'spesa' || v.kind === 'accantonamento') doc.scope = v.scope || 'personale';
+      if (v.kind === 'entrata' && v.clientId) {
         doc.clientId = v.clientId;
         if (String(v.link).startsWith('p:')) doc.packageId = v.link.slice(2); else if (String(v.link).startsWith('v:')) doc.visitId = v.link.slice(2);
       }
@@ -1578,8 +1579,9 @@ function catForm(c) {
       { id: 'color', label: 'Colore', type: 'color', value: c.color, palette: MACARON },
       { id: 'icon', label: 'Icona', type: 'icon', value: catIconKey(c) }
     ],
+    onChange(v, form) { showField(form, 'scope', v.kind === 'spesa'); },
     validate: v => !v.name.trim() ? 'Dai un nome alla categoria.' : '',
-    async onSubmit(v) { const ok = await put('categories', c.id || uid(), { ...strip(c), kind: v.kind, name: v.name.trim(), scope: v.scope || 'personale', color: v.color || c.color, icon: v.icon || '' }); ok && toast('Categoria salvata'); return ok; },
+    async onSubmit(v) { const ok = await put('categories', c.id || uid(), { ...strip(c), kind: v.kind, name: v.name.trim(), scope: v.kind === 'spesa' ? (v.scope || 'personale') : '', color: v.color || c.color, icon: v.icon || '' }); ok && toast('Categoria salvata'); return ok; },
     onDelete: isNew ? null : async () => {
       if (S.transactions.some(t => t.categoryId === c.id)) { toast('Ci sono movimenti con questa categoria: spostali prima di eliminarla.', true); return false; }
       const ok = await del('categories', c.id); ok && toast('Categoria eliminata'); return ok;
@@ -1693,7 +1695,7 @@ async function exportXLSX() {
     'Importo (€)': r2((t.kind === 'spesa' || t.kind === 'accantonamento') ? -t.amount : +t.amount),
     'Valuta': txCur(t), 'Importo originale': r2(txOrig(t)), 'Cambio (€ per unità)': t.rate && txCur(t) !== BASE ? +(+t.rate).toFixed(6) : 1,
     'Conto': t.paidBy ? '' : (acc(t.accountId)?.name || ''), 'Verso conto / fondo': acc(t.toAccountId)?.name || '',
-    'Pagata da': t.paidBy || '', 'Ambito': t.kind === 'giroconto' ? '' : SCOPES[txScope(t)], 'Cliente': t.clientId ? (byId('clients', t.clientId)?.name || '') : ''
+    'Pagata da': t.paidBy || '', 'Ambito': t.kind === 'giroconto' || t.kind === 'entrata' ? '' : SCOPES[txScope(t)], 'Cliente': t.clientId ? (byId('clients', t.clientId)?.name || '') : ''
   }));
   const balN = balancesNative(), bal = balances();
   const conti = S.accounts.map(a => ({ 'Nome': a.name, 'Tipo': ACC_TYPES[a.type] || a.type, 'Valuta': a.currency || BASE, 'Saldo iniziale': r2(a.openingBalance), 'Saldo attuale': r2(balN[a.id]), 'Saldo in €': r2(bal[a.id]), 'Fondo di accantonamento': a.reserve ? 'Sì' : 'No', 'Archiviato': a.archived ? 'Sì' : 'No' }));
