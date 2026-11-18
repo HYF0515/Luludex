@@ -4,6 +4,11 @@ Luludex is a personal finance web app (Italian UI) that installs on your phone l
 
 Modules: accounts (also in foreign currencies), transactions, transfers, tax set-asides (accantonamenti), CSV and Excel import/export, monthly and annual budget, properties with mortgage tracking (including expenses paid by other people), net worth and investments, savings goals, recurring items, full JSON backup.
 
+## Current status: local mode (no database)
+
+Luludex is **not connected to any database yet**. `config.js` is empty (`window.LULUDEX_FIREBASE = null`), so the app starts directly without sign-in and keeps all data in the browser's `localStorage` (key `luludex.data`) on that device only. Use *Impostazioni → Backup completo* to save a copy.
+The Firebase code is kept intact: connecting a dedicated Luludex Firebase project later only requires filling `config.js` (see setup below).
+
 ## How it works
 
 - Static files hosted on GitHub Pages: `index.html`, `sw.js`, `manifest.webmanifest`, `vendor/` (Firebase SDK), `icons/`.

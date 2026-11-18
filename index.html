@@ -452,6 +452,15 @@ const LS = {
 let netDown = !navigator.onLine, pendingWrites = false;
 const pendingCols = new Set();
 const userCol = col => S.fs.collection('users').doc(S.user.id).collection(col);
+// Modalità locale: senza database collegato i dati restano solo in questo browser (localStorage).
+const LOCAL_KEY = 'luludex.data';
+let saveT;
+function saveLocal() { clearTimeout(saveT); saveT = setTimeout(() => LS.set(LOCAL_KEY, snapshotDocs()), 150); }
+function loadLocal() {
+  const d = LS.get(LOCAL_KEY, null) || {};
+  COLS.forEach(c => S[c] = Object.entries(d[c] || {}).map(([id, x]) => ({ ...x, id })));
+  S.settings = d.settings?.main ? { ...d.settings.main } : {};
+}
 const clean = o => JSON.parse(JSON.stringify(o));
 function snapshotDocs() {
   const docs = {};
@@ -471,6 +480,7 @@ function fbErr(e) {
   return 'Operazione non riuscita: ' + (e && e.message || c);
 }
 async function put(col, id, data) {
+  if (S.local) { applyLocal(col, id, clean(data)); saveLocal(); schedule(); return true; }
   if (!S.fs || !S.user) { toast('Non sei collegato al database.', true); return false; }
   const d = clean(data);
   applyLocal(col, id, d); schedule();
@@ -478,6 +488,7 @@ async function put(col, id, data) {
   return true;
 }
 async function del(col, id) {
+  if (S.local) { applyLocal(col, id, null); saveLocal(); schedule(); return true; }
   if (!S.fs || !S.user) return false;
   applyLocal(col, id, null); schedule();
   userCol(col).doc(id).delete().catch(e => toast(fbErr(e), true));
@@ -489,6 +500,7 @@ function updateSync() {
   const el = $('#sync'); if (!el) return;
   el.className = 'sync' + (netDown ? ' off' : pendingWrites ? ' wait' : '');
   el.lastElementChild.textContent = netDown ? (pendingWrites ? 'Offline: modifiche salvate sul dispositivo' : 'Offline') : pendingWrites ? 'Sincronizzazione…' : 'Sincronizzato';
+  if (S.local) { el.className = 'sync'; el.lastElementChild.textContent = 'Salvato su questo dispositivo'; return; }
   const b = $('#offline-banner'); if (b) b.hidden = !(netDown && pendingWrites);
 }
 let unsubs = [];
@@ -1108,12 +1120,15 @@ VIEWS.impostazioni = () => {
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="backup">Scarica backup</button><label class="btn" for="restore-file">Ripristina da backup</label><input type="file" id="restore-file" accept=".json,application/json" hidden></div>
       </div>
     </section>
-    <section class="panel"><div class="panel-h"><h2>Account e sincronizzazione</h2></div>
+    ${S.local ? `<section class="panel"><div class="panel-h"><h2>Archivio dati</h2></div>
+      <div class="list-row"><div class="l"><span class="muted">Database</span></div><span>Nessuno · solo questo dispositivo</span></div>
+      <p class="muted" style="margin:8px 0 0;font-size:.88rem">Luludex non è ancora collegato a un database: i dati restano in questo browser e non si sincronizzano con altri dispositivi. Usa <b>Scarica backup</b> per conservarli.</p>
+    </section>` : `<section class="panel"><div class="panel-h"><h2>Account e sincronizzazione</h2></div>
       <div class="list-row"><div class="l"><span class="muted">Accesso come</span></div><b style="overflow:hidden;text-overflow:ellipsis">${esc(S.user?.email || '')}</b></div>
       <div class="list-row"><div class="l"><span class="muted">Database</span></div><span>Firebase · ${esc(getConfig().projectId || '')}</span></div>
       <div class="list-row"><div class="l"><span class="muted">Stato</span></div><span>${netDown ? (pendingWrites ? 'Offline · modifiche in attesa' : 'Offline') : pendingWrites ? 'Sincronizzazione in corso' : 'Sincronizzato'}</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" data-act="set-pass">${firebase.auth().currentUser?.providerData.some(p => p.providerId === 'password') ? 'Cambia password' : 'Imposta password per il telefono'}</button><button class="btn" data-act="sync-now">Sincronizza ora</button><button class="btn danger" data-act="logout">Esci</button></div>
-    </section>
+    </section>`}
   </div>`;
 };
 
@@ -1913,8 +1928,14 @@ function startSession(user) {
 }
 
 /* ---------- avvio ---------- */
+function startLocal() {
+  S.local = true; S.user = { id: 'local', email: '' };
+  loadLocal(); S.synced = true; S.status = 'ok';
+  render(); updateSync(); onFirstSync();
+}
 async function boot() {
   const cfg = getConfig();
+  if (!cfg.fromFile) return startLocal(); // nessun database configurato in config.js
   if (!window.firebase || !firebase.initializeApp) { $('#view').innerHTML = `<div class="panel empty"><h2>Impossibile avviare l'app</h2><p>La libreria di Firebase non è stata caricata. Controlla la connessione e ricarica.</p></div>`; return; }
   if (!cfg.apiKey || !cfg.projectId) { S.status = 'setup'; render(); return; }
   const { fromFile, ...conf } = cfg;
