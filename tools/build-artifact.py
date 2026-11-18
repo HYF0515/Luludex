@@ -14,12 +14,20 @@ drop = [r'<!doctype html>\n', r'<html lang="it">\n', r'<head>\n', r'<meta charse
         r'<meta name="(apple-mobile-web-app[^"]*|mobile-web-app-capable)"[^\n]*\n',
         r'</body>\n', r'</html>\n?',
         r'<script src="vendor/[^"]+"></script>\n',
-        r"if \('serviceWorker' in navigator[^\n]*\n"]
+        ]
 for pat in [r'</head>\n', r'<body[^>]*>\n']:  # opzionali
     s = re.sub(pat, '', s)
 for pat in drop:
     s, n = re.subn(pat, '', s)
     assert n, pat
+# l'icona della schermata d'avvio va inclusa nel file (nell'Artifact non ci sono altri file)
+import base64
+icon = base64.b64encode((root / 'icons' / 'icon-192.png').read_bytes()).decode()
+assert 'src="icons/icon-192.png"' in s
+s = s.replace('src="icons/icon-192.png"', 'src="data:image/png;base64,' + icon + '"')
+# niente service worker dentro l'Artifact
+assert "if ('serviceWorker' in navigator && location.protocol === 'https:') {" in s
+s = s.replace("if ('serviceWorker' in navigator && location.protocol === 'https:') {", "if (false) { // service worker disattivato nell'Artifact")
 s = s.replace('<script src="config.js"></script>', '<script>window.LULUDEX_FIREBASE = null; // artifact: solo modalità locale</script>')
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(s)
