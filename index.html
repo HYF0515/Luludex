@@ -159,6 +159,14 @@ a.btn{color:inherit;text-decoration:none}
 .vs-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:.88rem;padding:6px 8px;margin:0 -8px;border-radius:8px;cursor:pointer;border:0;background:none;text-align:left;color:inherit;font:inherit;width:calc(100% + 16px)}
 .vs-row:hover,.vs-row:focus-visible{background:var(--surface-2)}
 .vs-row .l{display:flex;flex-direction:column;min-width:0}
+.file-open{border:0;background:none;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;min-width:0}
+.file-open b{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.file-open:hover b,.file-open:focus-visible b{text-decoration-color:currentColor}
+.sheet.viewer{max-width:980px}
+.viewer header .acts{display:flex;gap:8px;align-items:center}
+.pv{display:flex;flex-direction:column;gap:12px;align-items:center;background:var(--surface-2);padding:12px;border-radius:10px;min-height:200px;max-height:76vh;overflow:auto}
+.pv canvas,.pv img{max-width:100%;height:auto;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.18);border-radius:2px}
+.pv .muted{align-self:center;margin:auto 0}
 .pk-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .pk-row{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:.88rem}
 .pk-act{display:flex;gap:6px;flex-wrap:wrap}
@@ -1183,8 +1191,9 @@ function paymentsSheet(id) {
 }
 const clientInvoices = id => S.invoices.filter(i => i.clientId === id).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.number).localeCompare(String(a.number), 'it', { numeric: true }));
 function invoiceRow(i) {
-  return `<div class="pk-row" style="padding:6px 0;border-top:1px solid var(--line)"><span style="display:flex;flex-direction:column;min-width:0"><b>Fattura ${esc(i.number)}</b><small class="muted" style="overflow-wrap:anywhere">${dShort(i.date)}${i.fileName ? ' · ' + esc(i.fileName) + (i.size ? ' (' + fileSize(i.size) + ')' : '') : ' · nessun file'}</small></span>
-    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${+i.amount ? `<span class="num" style="font-weight:600">${money(+i.amount)}</span>` : ''}${i.fileKey ? `<button type="button" class="btn small" data-act="invoice-dl" data-id="${esc(i.id)}">Scarica</button>` : ''}<button type="button" class="btn small ghost" data-act="edit-invoice" data-id="${esc(i.id)}">Modifica</button></span></div>`;
+  const meta = `${dShort(i.date)}${i.fileName ? ' · ' + esc(i.fileName) + (i.size ? ' (' + fileSize(i.size) + ')' : '') : ' · nessun file'}`;
+  return `<div class="pk-row" style="padding:6px 0;border-top:1px solid var(--line)">${i.fileKey ? `<button type="button" class="file-open" data-act="file-view" data-col="invoices" data-id="${esc(i.id)}" title="Apri la fattura"><b>Fattura ${esc(i.number)}</b><small class="muted" style="overflow-wrap:anywhere">${meta}</small></button>` : `<span style="display:flex;flex-direction:column;min-width:0"><b>Fattura ${esc(i.number)}</b><small class="muted">${meta}</small></span>`}
+    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${+i.amount ? `<span class="num" style="font-weight:600">${money(+i.amount)}</span>` : ''}${i.fileKey ? `<button type="button" class="btn small" data-act="file-view" data-col="invoices" data-id="${esc(i.id)}">Apri</button>` : ''}<button type="button" class="btn small ghost" data-act="edit-invoice" data-id="${esc(i.id)}">Modifica</button></span></div>`;
 }
 async function invoiceDownload(i) {
   if (!i?.fileKey) return;
@@ -1239,8 +1248,9 @@ function invoiceForm(inv, clientId) {
 const clientDiets = id => S.diets.filter(d => d.clientId === id).sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.createdAt || 0) - (a.createdAt || 0));
 function dietRow(d) {
   const v = d.visitId ? byId('visits', d.visitId) : null;
-  return `<div class="pk-row" style="padding:6px 0;border-top:1px solid var(--line)"><span style="display:flex;flex-direction:column;min-width:0"><b>${esc(d.title || 'Dieta')}</b><small class="muted" style="overflow-wrap:anywhere">${dShort(d.date)}${v ? ' · ' + esc(VISIT[v.kind]?.l || 'Visita') + ' del ' + dShort(v.date) : ''}${d.fileName ? ' · ' + esc(d.fileName) + (d.size ? ' (' + fileSize(d.size) + ')' : '') : ''}${d.notes ? ' · ' + esc(d.notes) : ''}</small></span>
-    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${d.fileKey ? `<button type="button" class="btn small" data-act="diet-dl" data-id="${esc(d.id)}">Scarica</button>` : ''}<button type="button" class="btn small ghost" data-act="edit-diet" data-id="${esc(d.id)}">Modifica</button></span></div>`;
+  const meta = `${dShort(d.date)}${v ? ' · ' + esc(VISIT[v.kind]?.l || 'Visita') + ' del ' + dShort(v.date) : ''}${d.fileName ? ' · ' + esc(d.fileName) + (d.size ? ' (' + fileSize(d.size) + ')' : '') : ''}${d.notes ? ' · ' + esc(d.notes) : ''}`;
+  return `<div class="pk-row" style="padding:6px 0;border-top:1px solid var(--line)">${d.fileKey ? `<button type="button" class="file-open" data-act="file-view" data-col="diets" data-id="${esc(d.id)}" title="Apri la dieta"><b>${esc(d.title || 'Dieta')}</b><small class="muted" style="overflow-wrap:anywhere">${meta}</small></button>` : `<span style="display:flex;flex-direction:column;min-width:0"><b>${esc(d.title || 'Dieta')}</b><small class="muted">${meta}</small></span>`}
+    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${d.fileKey ? `<button type="button" class="btn small" data-act="file-view" data-col="diets" data-id="${esc(d.id)}">Apri</button>` : ''}<button type="button" class="btn small ghost" data-act="edit-diet" data-id="${esc(d.id)}">Modifica</button></span></div>`;
 }
 async function dietDownload(d) {
   if (!d?.fileKey) return;
@@ -1289,6 +1299,49 @@ function dietForm(d, clientId) {
     deleteLabel: 'Elimina dieta',
     onDelete: isNew ? null : async () => { const ok = await del('diets', d.id); if (ok) { if (d.fileKey) FILES.del(d.fileKey).catch(() => {}); toast('Dieta eliminata'); setTimeout(() => paymentsSheet(d.clientId), 30); } return ok; }
   });
+}
+// Anteprima di fatture e diete dentro l'app. I PDF sono disegnati con pdf.js (caricato solo quando serve).
+let _pdfjs = null;
+function loadPdfJs() {
+  if (_pdfjs) return _pdfjs;
+  const base = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
+  const load = src => new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error('script')); document.head.appendChild(sc); });
+  // il worker caricato come script normale fa lavorare pdf.js senza processi separati (necessario dentro l'Artifact)
+  _pdfjs = load(base + 'pdf.worker.min.js').then(() => load(base + 'pdf.min.js')).then(() => { const lib = window.pdfjsLib; lib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js'; return lib; }).catch(e => { _pdfjs = null; throw e; });
+  return _pdfjs;
+}
+let viewerUrl = '';
+async function fileViewer(col, id) {
+  const doc = byId(col, id); if (!doc?.fileKey) return;
+  const title = col === 'invoices' ? 'Fattura ' + doc.number : (doc.title || 'Dieta');
+  const m = $('#modal');
+  m.innerHTML = `<div class="sheet viewer" role="dialog" aria-modal="true" aria-labelledby="m-title"><header><h2 id="m-title" style="min-width:0;overflow-wrap:anywhere">${esc(title)}</h2><div class="acts"><button type="button" class="btn small primary" data-act="file-dl" data-col="${col}" data-id="${esc(id)}">Scarica</button><button type="button" class="btn small ghost" data-act="client-pays" data-id="${esc(doc.clientId)}">Indietro</button><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></div></header>
+    <div class="body"><small class="muted">${esc(byId('clients', doc.clientId)?.name || '')} · ${dShort(doc.date)}${doc.fileName ? ' · ' + esc(doc.fileName) : ''}</small><div class="pv" id="pv"><p class="muted">Apro il file…</p></div></div></div>`;
+  m.hidden = false;
+  const pv = $('#pv'), fail = msg => { if (pv.isConnected) pv.innerHTML = `<p class="muted">${msg} Puoi comunque scaricarlo con “Scarica”.</p>`; };
+  let blob; try { blob = await FILES.get(doc.fileKey); } catch (e) {}
+  if (!blob) return fail('Il file non è su questo dispositivo.');
+  const type = doc.mime || blob.type || '';
+  if (viewerUrl) { URL.revokeObjectURL(viewerUrl); viewerUrl = ''; }
+  if (type.startsWith('image/')) { viewerUrl = URL.createObjectURL(blob); pv.innerHTML = `<img src="${viewerUrl}" alt="${esc(title)}">`; return; }
+  if (!/pdf/i.test(type) && !/\.pdf$/i.test(doc.fileName || '')) return fail('Anteprima non disponibile per questo tipo di file.');
+  try {
+    const lib = await loadPdfJs();
+    const pdf = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false, disableFontFace: true }).promise;
+    if (!pv.isConnected) return;
+    pv.innerHTML = '';
+    const maxPages = Math.min(pdf.numPages, 40), dpr = Math.min(2, window.devicePixelRatio || 1);
+    for (let n = 1; n <= maxPages; n++) {
+      if (!pv.isConnected) return;
+      const page = await pdf.getPage(n), w = Math.max(240, Math.min(900, pv.clientWidth - 24));
+      const vp = page.getViewport({ scale: w / page.getViewport({ scale: 1 }).width * dpr });
+      const cv = document.createElement('canvas'); cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height); cv.style.width = w + 'px';
+      cv.setAttribute('aria-label', `${title}, pagina ${n} di ${pdf.numPages}`);
+      pv.appendChild(cv);
+      await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    }
+    if (pdf.numPages > maxPages) pv.insertAdjacentHTML('beforeend', `<p class="muted">Mostrate le prime ${maxPages} pagine di ${pdf.numPages}. Scarica il file per vederlo tutto.</p>`);
+  } catch (e) { fail('Non riesco a mostrare l’anteprima di questo PDF.'); }
 }
 function pkgPay(p) {
   if (!p) return;
@@ -2122,6 +2175,8 @@ document.addEventListener('click', e => {
   if (a === 'new-diet') return dietForm(null, t.dataset.client);
   if (a === 'edit-diet') return dietForm(byId('diets', id));
   if (a === 'diet-dl') return dietDownload(byId('diets', id));
+  if (a === 'file-view') return fileViewer(t.dataset.col, id);
+  if (a === 'file-dl') return t.dataset.col === 'invoices' ? invoiceDownload(byId('invoices', id)) : dietDownload(byId('diets', id));
   if (a === 'client-pay-new') { closeModal(); return txForm(null, { kind: 'entrata', scope: 'lavoro', clientId: id }); }
   if (a === 'renew-pkg') { const p = byId('packages', id); return p && pkgForm(null, p.clientId, renewPreset(p)); }
   if (a === 'edit-pkg') return pkgForm(byId('packages', id));
