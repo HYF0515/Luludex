@@ -339,7 +339,7 @@ function nextDate(iso, f) {
 }
 
 /* ---------- stato ---------- */
-const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages', 'visits'];
+const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages', 'visits', 'invoices'];
 const S = { fs: null, user: null, synced: false, status: 'loading', settings: {},
   ui: { budgetMode: 'mese', budgetYear: todayISO().slice(0, 4), year: todayISO().slice(0, 4), month: ymOf(todayISO()), q: '', fAcc: '', fCat: '', fKind: '', budgetMonth: ymOf(todayISO()), scope: (() => { try { return localStorage.getItem('luludex.scope') || 'tutto'; } catch (e) { return 'tutto'; } })(), cFilter: 'attivi', cq: '' } };
 COLS.forEach(c => S[c] = []);
@@ -468,6 +468,17 @@ function monthStats(ym) {
   }
   return { inc, exp, net: inc - exp, rate: inc > 0 ? (inc - exp) / inc : NaN, byCat };
 }
+
+/* ---------- file allegati (fatture): IndexedDB nel browser ---------- */
+const FILES = (() => {
+  let dbp;
+  const open = () => dbp || (dbp = new Promise((res, rej) => { try { const r = indexedDB.open('luludex-files', 1); r.onupgradeneeded = () => r.result.createObjectStore('files'); r.onsuccess = () => res(r.result); r.onerror = () => { dbp = null; rej(r.error); }; } catch (e) { dbp = null; rej(e); } }));
+  const run = (mode, fn) => open().then(db => new Promise((res, rej) => { const t = db.transaction('files', mode), r = fn(t.objectStore('files')); t.oncomplete = () => res(r ? r.result : undefined); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }));
+  return { put: (k, blob) => run('readwrite', st => st.put(blob, k)), get: k => run('readonly', st => st.get(k)), del: k => run('readwrite', st => st.delete(k)) };
+})();
+const blobToB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+const b64ToBlob = (b64, type) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: type || 'application/octet-stream' }); };
+const fileSize = n => n >= 1048576 ? (n / 1048576).toLocaleString('it-IT', { maximumFractionDigits: 1 }) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 
 /* ---------- archivio: Firebase Firestore (tempo reale, funziona anche offline) ---------- */
 const LS = {
@@ -951,17 +962,18 @@ const clientPayments = id => sortTx(S.transactions.filter(t => t.clientId === id
 function payRow(t) {
   const ref = t.packageId ? byId('packages', t.packageId) : null, vis = t.visitId ? byId('visits', t.visitId) : null;
   const what = ref ? pkgLabel(ref) : vis ? `${VISIT[vis.kind]?.l || 'Visita'} del ${dShort(vis.date)}` : (cat(t.categoryId)?.name || 'Entrata');
-  return `<button type="button" class="vs-row" data-act="edit-tx" data-id="${esc(t.id)}"><span class="l"><b>${esc(what)}</b><small class="muted">${dShort(t.date)}${acc(t.accountId) ? ' · ' + esc(acc(t.accountId).name) : ''}${t.note ? ' · ' + esc(t.note) : ''}</small></span><span class="num pos" style="font-weight:600">+${money(+t.amount)}</span></button>`;
+  const inv = S.invoices.find(i => i.txId === t.id);
+  return `<button type="button" class="vs-row" data-act="edit-tx" data-id="${esc(t.id)}"><span class="l"><b>${esc(what)}</b><small class="muted">${dShort(t.date)}${acc(t.accountId) ? ' · ' + esc(acc(t.accountId).name) : ''}${t.note ? ' · ' + esc(t.note) : ''}</small></span><span style="display:flex;gap:8px;align-items:center">${inv ? `<span class="pill">Fattura ${esc(inv.number)}</span>` : ''}<span class="num pos" style="font-weight:600">+${money(+t.amount)}</span></span></button>`;
 }
 function clientCards() {
   const f = S.ui.cFilter || 'attivi', q = (S.ui.cq || '').trim().toLowerCase();
   let list = clientsSorted();
   if (f === 'attivi') list = list.filter(c => clientActive(c.id));
   if (f === 'da-saldare') list = list.filter(c => clientDue(c.id) > 0);
-  if (q) list = list.filter(c => [c.name, c.phone, c.email, c.notes].join(' ').toLowerCase().includes(q));
+  if (q) list = list.filter(c => [c.name, c.phone, c.email, c.cf, c.address, c.notes].join(' ').toLowerCase().includes(q));
   if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : 'Nessun cliente.'}</p></div>`;
   return list.map(c => { const ps = clientPkgs(c.id);
-    return `<article class="cl"><div class="cl-h"><div style="min-width:0"><button type="button" class="cl-name" data-act="client-pays" data-id="${esc(c.id)}" title="Storico pagamenti">${esc(c.name)}</button><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small>${(() => { const pays = clientPayments(c.id); return pays.length ? `<small class="muted" style="display:block">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'} · incassati <span class="num pos" style="font-weight:600">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</span></small>` : ''; })()}</div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica</button></div>
+    return `<article class="cl"><div class="cl-h"><div style="min-width:0"><button type="button" class="cl-name" data-act="client-pays" data-id="${esc(c.id)}" title="Apri la scheda: dati, pagamenti e fatture">${esc(c.name)}</button><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small>${(() => { const pays = clientPayments(c.id); return pays.length ? `<small class="muted" style="display:block">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'} · incassati <span class="num pos" style="font-weight:600">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</span></small>` : ''; })()}</div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica</button></div>
       ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
         return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
       <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button></div></article>`; }).join('');
@@ -995,11 +1007,11 @@ VIEWS.clienti = () => {
 };
 function clientForm(c) {
   const isNew = !c; c = c || {};
-  const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id), vs = isNew ? [] : clientVisits(c.id);
+  const ps = isNew ? [] : S.packages.filter(p => p.clientId === c.id), vs = isNew ? [] : clientVisits(c.id), invs = isNew ? [] : S.invoices.filter(i => i.clientId === c.id);
   openForm({
     title: isNew ? 'Nuovo cliente' : c.name,
     intro: (() => { const pays = isNew ? [] : clientPayments(c.id); let h = '';
-      if (pays.length) h += `<button type="button" class="btn small" data-act="client-pays" data-id="${esc(c.id)}" style="align-self:flex-start">Storico pagamenti · ${pays.length} · totale ${money0(pays.reduce((s, t) => s + +t.amount, 0))}</button>`;
+      if (!isNew) h += `<button type="button" class="btn small" data-act="client-pays" data-id="${esc(c.id)}" style="align-self:flex-start">Scheda completa: pagamenti${invs.length ? ' e ' + invs.length + ' fattur' + (invs.length === 1 ? 'a' : 'e') : ' e fatture'}</button>`;
       const pks = isNew ? [] : clientPkgs(c.id);
       if (pks.length) h += `<div class="vs" style="${pays.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico pacchetti</b><span class="muted">${pks.length}</span></div>${pks.map(p => `<button type="button" class="vs-row" data-act="edit-pkg" data-id="${esc(p.id)}"><span class="l"><b>${esc(pkgLabel(p))}</b><small class="muted">${p.startDate ? dShort(p.startDate) + ' → ' + dShort(pkgEnd(p)) : ''}${p.kind === 'pt' ? ` · ${pkgDone(p)}/${+p.lessons || 0} lezioni` : ''}</small></span><span>${+p.price ? (pkgDue(p) > 0 ? `<span class="pill neg num">Da saldare ${money0(pkgDue(p))}</span>` : `<span class="pill pos">Saldato</span>`) : ''} <span class="pill ${PKG_STATUS[pkgStatus(p)].c}">${PKG_STATUS[pkgStatus(p)].l}</span></span></button>`).join('')}</div>`;
       if (vs.length) h += `<div class="vs" style="${pays.length || pks.length ? '' : 'border:0;padding:0'}"><div class="pk-row"><b>Storico visite</b><span class="muted">${vs.length}</span></div>${vs.map(visitRow).join('')}</div>`;
@@ -1007,17 +1019,24 @@ function clientForm(c) {
     fields: [
       { id: 'name', label: 'Nome e cognome', value: c.name || '', required: true },
       [{ id: 'phone', label: 'Telefono', type: 'tel', value: c.phone || '' }, { id: 'email', label: 'Email', type: 'email', value: c.email || '' }],
+      { id: 'address', label: 'Indirizzo', value: c.address || '', placeholder: 'Via, numero civico, CAP, città' },
+      [{ id: 'cf', label: 'Codice Fiscale', value: c.cf || '', placeholder: 'RSSMRA80A01H501U' }, { id: 'vat', label: 'Partita IVA (se azienda)', value: c.vat || '' }],
       { id: 'notes', label: 'Note', value: c.notes || '', placeholder: 'Obiettivi, infortuni, preferenze…' }
     ],
-    validate: v => !v.name.trim() ? 'Scrivi il nome del cliente.' : '',
+    validate(v) {
+      if (!v.name.trim()) return 'Scrivi il nome del cliente.';
+      const cf = v.cf.replace(/\s/g, '').toUpperCase();
+      if (cf && !/^[A-Z0-9]{16}$/.test(cf) && !/^\d{11}$/.test(cf)) return 'Il codice fiscale deve avere 16 caratteri (o 11 cifre per le aziende).';
+      if (v.vat.trim() && !/^(IT)?\d{11}$/i.test(v.vat.replace(/\s/g, ''))) return 'La partita IVA deve avere 11 cifre.';
+    },
     async onSubmit(v) {
       const id = c.id || uid();
-      const ok = await put('clients', id, { ...strip(c), name: v.name.trim(), phone: v.phone.trim(), email: v.email.trim(), notes: v.notes.trim(), createdAt: c.createdAt || Date.now() });
+      const ok = await put('clients', id, { ...strip(c), name: v.name.trim(), phone: v.phone.trim(), email: v.email.trim(), address: v.address.trim(), cf: v.cf.replace(/\s/g, '').toUpperCase(), vat: v.vat.replace(/\s/g, '').toUpperCase(), notes: v.notes.trim(), createdAt: c.createdAt || Date.now() });
       if (ok) { toast(isNew ? 'Cliente aggiunto' : 'Cliente aggiornato'); if (isNew) setTimeout(() => pkgForm(null, id), 50); }
       return ok;
     },
-    deleteLabel: ps.length || vs.length ? 'Elimina cliente, pacchetti e visite' : 'Elimina cliente',
-    onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); vs.forEach(v => del('visits', v.id)); const ok = await del('clients', c.id); ok && toast(ps.length || vs.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
+    deleteLabel: ps.length || vs.length || invs.length ? `Elimina cliente${ps.length ? ', pacchetti' : ''}${vs.length ? ', visite' : ''}${invs.length ? ', fatture' : ''}` : 'Elimina cliente',
+    onDelete: isNew ? null : async () => { ps.forEach(p => del('packages', p.id)); vs.forEach(v => del('visits', v.id)); invs.forEach(i => { del('invoices', i.id); if (i.fileKey) FILES.del(i.fileKey).catch(() => {}); }); const ok = await del('clients', c.id); ok && toast(ps.length || vs.length ? 'Cliente eliminato. I pagamenti restano tra le entrate.' : 'Cliente eliminato'); return ok; }
   });
 }
 function pkgForm(p, clientId, preset) {
@@ -1143,14 +1162,76 @@ function paymentsSheet(id) {
   const dues = [...S.packages.filter(p => p.clientId === id && pkgDue(p) > 0).map(p => ({ l: pkgLabel(p), sub: p.startDate ? dShort(p.startDate) + ' → ' + dShort(pkgEnd(p)) : '', due: pkgDue(p), act: 'pkg-pay', id: p.id })),
     ...S.visits.filter(v => v.clientId === id && visitDue(v) > 0).map(v => ({ l: VISIT[v.kind]?.l || 'Visita', sub: dShort(v.date), due: visitDue(v), act: 'visit-pay', id: v.id }))];
   const years = [...new Set(pays.map(t => t.date.slice(0, 4)))];
+  const invs = clientInvoices(id);
+  const info = [['Telefono', c.phone], ['Email', c.email], ['Indirizzo', c.address], ['Codice Fiscale', c.cf], ['Partita IVA', c.vat], ['Note', c.notes]].filter(([, v]) => v);
   const m = $('#modal');
-  m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title"><header><h2 id="m-title">Pagamenti di ${esc(c.name)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header><div class="body">
+  m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title"><header><h2 id="m-title">${esc(c.name)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header><div class="body">
+    <div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Dati personali</b><button type="button" class="btn small ghost" data-act="edit-client" data-id="${esc(id)}">Modifica dati</button></div>
+      ${info.length ? info.map(([k, v]) => `<div class="list-row"><div class="l"><span class="muted">${k}</span></div><span style="overflow-wrap:anywhere;text-align:right;${k === 'Codice Fiscale' || k === 'Partita IVA' ? 'font-family:var(--f-data);' : ''}">${esc(v)}</span></div>`).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun dato inserito: aggiungi indirizzo e codice fiscale con “Modifica dati”.</p>'}</div>
     <div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="kpi"><span class="eyebrow">Totale pagato</span><span class="v num pos">${money0(tot)}</span><span class="s">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'}</span></div><div class="kpi"><span class="eyebrow">Da saldare</span><span class="v num ${dues.length ? 'neg' : ''}">${money0(dues.reduce((s, d) => s + d.due, 0))}</span><span class="s">${dues.length ? dues.length + ' da saldare' : 'Tutto saldato'}</span></div></div>
     ${dues.length ? `<div class="vs" style="border:0;padding:0"><b>Da saldare</b>${dues.map(d => `<div class="pk-row" style="padding:4px 0"><span class="l" style="display:flex;flex-direction:column"><b>${esc(d.l)}</b><small class="muted">${esc(d.sub)}</small></span><span style="display:flex;gap:8px;align-items:center"><span class="pill neg num">${money0(d.due)}</span><button type="button" class="btn small" data-act="${d.act}" data-id="${esc(d.id)}">Registra pagamento</button></span></div>`).join('')}</div>` : ''}
     ${years.length ? years.map(y => { const ly = pays.filter(t => t.date.startsWith(y)); return `<div class="vs"><div class="pk-row"><b>${y}</b><span class="muted num">${money0(ly.reduce((s, t) => s + +t.amount, 0))}</span></div>${ly.map(payRow).join('')}</div>`; }).join('') : '<p class="muted" style="margin:0">Nessun pagamento registrato.</p>'}
     <div class="pk-act"><button type="button" class="btn small" data-act="client-pay-new" data-id="${esc(id)}">+ Altro pagamento</button></div>
+    <div class="vs"><div class="pk-row"><b>Fatture emesse</b><span class="muted">${invs.length ? `${invs.length} · ${money0(invs.reduce((s, i) => s + (+i.amount || 0), 0))}` : ''}</span></div>
+      ${invs.length ? invs.map(invoiceRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessuna fattura. Carica il PDF delle fatture che emetti per ritrovarle qui.</p>'}
+      <div class="pk-act"><button type="button" class="btn small primary" data-act="new-invoice" data-client="${esc(id)}">+ Carica fattura</button></div></div>
   </div></div>`;
   m.hidden = false;
+}
+const clientInvoices = id => S.invoices.filter(i => i.clientId === id).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.number).localeCompare(String(a.number), 'it', { numeric: true }));
+function invoiceRow(i) {
+  return `<div class="pk-row" style="padding:6px 0;border-top:1px solid var(--line)"><span style="display:flex;flex-direction:column;min-width:0"><b>Fattura ${esc(i.number)}</b><small class="muted" style="overflow-wrap:anywhere">${dShort(i.date)}${i.fileName ? ' · ' + esc(i.fileName) + (i.size ? ' (' + fileSize(i.size) + ')' : '') : ' · nessun file'}</small></span>
+    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${+i.amount ? `<span class="num" style="font-weight:600">${money(+i.amount)}</span>` : ''}${i.fileKey ? `<button type="button" class="btn small" data-act="invoice-dl" data-id="${esc(i.id)}">Scarica</button>` : ''}<button type="button" class="btn small ghost" data-act="edit-invoice" data-id="${esc(i.id)}">Modifica</button></span></div>`;
+}
+async function invoiceDownload(i) {
+  if (!i?.fileKey) return;
+  let blob; try { blob = await FILES.get(i.fileKey); } catch (e) {}
+  if (!blob) { toast('Il file di questa fattura non è su questo dispositivo. Caricalo di nuovo da “Modifica”.', true); return; }
+  if (await saveFile(i.fileName || `fattura-${i.number}.pdf`, blob, i.mime || blob.type || 'application/pdf')) toast('Fattura scaricata');
+}
+function invoiceForm(inv, clientId) {
+  const isNew = !inv; inv = inv || { clientId, date: todayISO() };
+  const pays = clientPayments(inv.clientId);
+  const used = new Set(S.invoices.filter(x => x.id !== inv.id && x.txId).map(x => x.txId));
+  const year = (inv.date || todayISO()).slice(0, 4), lastN = S.invoices.filter(x => String(x.date).startsWith(year)).map(x => parseInt(x.number, 10)).filter(Number.isFinite);
+  openForm({
+    title: isNew ? 'Carica fattura' : 'Fattura ' + inv.number,
+    intro: `<p class="muted" style="margin:0;font-size:.88rem">Cliente: <b>${esc(byId('clients', inv.clientId)?.name || '')}</b>. Carica il PDF della fattura che hai emesso: resta salvato qui e lo riscarichi quando serve.</p>`,
+    fields: [
+      [{ id: 'number', label: 'Numero fattura', value: inv.number || (isNew ? `${(lastN.length ? Math.max(...lastN) : 0) + 1}/${year}` : ''), required: true }, { id: 'date', label: 'Data', type: 'date', value: inv.date, required: true }],
+      [{ id: 'txId', label: 'Pagamento a cui si riferisce', type: 'select', value: inv.txId || '', options: [{ v: '', l: '— nessuno —' }, ...pays.filter(t => !used.has(t.id)).map(t => ({ v: t.id, l: `${dShort(t.date)} · ${money(+t.amount)}${t.packageId && byId('packages', t.packageId) ? ' · ' + pkgLabel(byId('packages', t.packageId)) : t.visitId ? ' · visita' : ''}` }))] }, { id: 'amount', label: 'Importo (€)', num: true, value: inv.amount ?? '', placeholder: '0,00' }],
+      { id: 'file', label: inv.fileKey ? 'Sostituisci il file (facoltativo)' : 'File della fattura (PDF o immagine)', type: 'file', hint: inv.fileName ? `File attuale: ${inv.fileName}` : 'Massimo 15 MB' },
+      { id: 'notes', label: 'Note', value: inv.notes || '' }
+    ],
+    onChange(v, form, ev) {
+      if (!ev) form.elements.file.accept = 'application/pdf,image/*';
+      if (ev?.target?.name === 'txId' && v.txId && !form.elements.amount.value) { const t = byId('transactions', v.txId); if (t) form.elements.amount.value = String(t.amount).replace('.', ','); }
+    },
+    validate(v) {
+      if (!v.number.trim()) return 'Scrivi il numero della fattura.';
+      if (!v.date) return 'Indica la data della fattura.';
+      if (S.invoices.some(x => x.id !== inv.id && String(x.number).trim().toLowerCase() === v.number.trim().toLowerCase() && String(x.date).slice(0, 4) === v.date.slice(0, 4))) return 'Esiste già una fattura con questo numero nello stesso anno.';
+      if (v.amount && !(parseNum(v.amount) >= 0)) return 'L\'importo non è un numero valido.';
+      const f = $('#fld-file')?.files?.[0];
+      if (f && f.size > 15 * 1048576) return 'Il file è troppo grande (massimo 15 MB).';
+      if (isNew && !f) return 'Scegli il file della fattura.';
+    },
+    async onSubmit(v) {
+      const f = $('#fld-file')?.files?.[0], id = inv.id || uid();
+      const doc = { ...strip(inv), number: v.number.trim(), date: v.date, txId: v.txId || '', amount: v.amount ? Math.round(parseNum(v.amount) * 100) / 100 : null, notes: v.notes.trim(), createdAt: inv.createdAt || Date.now() };
+      if (f) {
+        const key = 'inv-' + id + '-' + Date.now();
+        try { await FILES.put(key, f); } catch (e) { toast('Non riesco a salvare il file in questo browser (spazio pieno o archivio bloccato).', true); return false; }
+        if (inv.fileKey) FILES.del(inv.fileKey).catch(() => {});
+        Object.assign(doc, { fileKey: key, fileName: f.name, mime: f.type || 'application/pdf', size: f.size });
+      }
+      const ok = await put('invoices', id, doc);
+      if (ok) { toast(isNew ? 'Fattura caricata' : 'Fattura aggiornata'); setTimeout(() => paymentsSheet(inv.clientId), 30); }
+      return ok;
+    },
+    deleteLabel: 'Elimina fattura',
+    onDelete: isNew ? null : async () => { const ok = await del('invoices', inv.id); if (ok) { if (inv.fileKey) FILES.del(inv.fileKey).catch(() => {}); toast('Fattura eliminata'); setTimeout(() => paymentsSheet(inv.clientId), 30); } return ok; }
+  });
 }
 function pkgPay(p) {
   if (!p) return;
@@ -1763,6 +1844,8 @@ async function exportXLSX() {
   if (pk.length) add('Clienti', pk, { 'Cliente': '' });
   const vis = [...S.visits].sort((a, b) => String(a.date).localeCompare(String(b.date))).map(v => ({ 'Data': d(v.date), 'Cliente': byId('clients', v.clientId)?.name || '', 'Tipo': VISIT[v.kind]?.l || '', 'Prezzo (€)': r2(v.price), 'Pagato (€)': r2(visitPaid(v)), 'Da saldare (€)': r2(visitDue(v)), 'Peso (kg)': v.weight ?? '', 'Prossimo controllo': d(v.nextDate), 'Note': v.notes || '' }));
   if (vis.length) add('Visite', vis, { 'Data': '' });
+  const fat = [...S.invoices].sort((a, b) => String(a.date).localeCompare(String(b.date))).map(i => { const c = byId('clients', i.clientId); return { 'Numero': i.number, 'Data': d(i.date), 'Cliente': c?.name || '', 'Codice Fiscale': c?.cf || '', 'Indirizzo': c?.address || '', 'Importo (€)': i.amount != null ? r2(i.amount) : '', 'File': i.fileName || '' }; });
+  if (fat.length) add('Fatture', fat, { 'Numero': '' });
   if (inv.length) add('Investimenti', inv, { 'Nome': '' });
   const buf = X.write(wb, { bookType: 'xlsx', type: 'array', cellDates: true });
   if (await saveFile(`luludex-${todayISO()}.xlsx`, buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) toast('File Excel esportato');
@@ -1936,8 +2019,10 @@ function exportCSV() {
   for (const t of sortTx(S.transactions).reverse()) lines.push([t.date, t.kind, ((t.kind === 'spesa' || t.kind === 'accantonamento') ? -t.amount : +t.amount).toFixed(2).replace('.', ','), q(acc(t.accountId)?.name), q(acc(t.toAccountId)?.name || ''), q(cat(t.categoryId)?.name || ''), q(t.note)].join(';'));
   download(`movimenti-${todayISO()}.csv`, '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8');
 }
-function backup() {
-  download(`luludex-backup-${todayISO()}.json`, JSON.stringify({ app: 'bilancio', version: 1, exportedAt: new Date().toISOString(), data: snapshotDocs() }, null, 1), 'application/json');
+async function backup() {
+  const files = {};
+  for (const i of S.invoices) if (i.fileKey) { try { const b = await FILES.get(i.fileKey); if (b) files[i.fileKey] = { type: i.mime || b.type, data: await blobToB64(b) }; } catch (e) {} }
+  download(`luludex-backup-${todayISO()}.json`, JSON.stringify({ app: 'bilancio', version: 1, exportedAt: new Date().toISOString(), data: snapshotDocs(), files }), 'application/json');
 }
 function restore(file) {
   const r = new FileReader();
@@ -1946,6 +2031,7 @@ function restore(file) {
     if (!j || j.app !== 'bilancio' || !j.data) { toast('Il file non è un backup di Luludex.', true); return; }
     let n = 0;
     for (const c of [...COLS, 'settings']) for (const [id, d] of Object.entries(j.data[c] || {})) { if (d && typeof d === 'object') { put(c, id, d); n++; } }
+    for (const [k, f] of Object.entries(j.files || {})) { try { FILES.put(k, b64ToBlob(f.data, f.type)).catch(() => {}); } catch (e) {} }
     toast(`Ripristinati ${n} elementi`);
   };
   r.readAsText(file);
@@ -1971,6 +2057,9 @@ document.addEventListener('click', e => {
   if (a === 'edit-client') return clientForm(byId('clients', id));
   if (a === 'new-pkg') return pkgForm(null, t.dataset.client);
   if (a === 'client-pays') return paymentsSheet(id);
+  if (a === 'new-invoice') return invoiceForm(null, t.dataset.client);
+  if (a === 'edit-invoice') return invoiceForm(byId('invoices', id));
+  if (a === 'invoice-dl') return invoiceDownload(byId('invoices', id));
   if (a === 'client-pay-new') { closeModal(); return txForm(null, { kind: 'entrata', scope: 'lavoro', clientId: id }); }
   if (a === 'renew-pkg') { const p = byId('packages', id); return p && pkgForm(null, p.clientId, renewPreset(p)); }
   if (a === 'edit-pkg') return pkgForm(byId('packages', id));
