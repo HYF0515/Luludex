@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Bubudex: ogni utente legge e scrive solo i propri dati, sotto users/{suo id}.
+// Nessun altro percorso del database è accessibile.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
