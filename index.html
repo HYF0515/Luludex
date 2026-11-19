@@ -525,7 +525,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '19'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '20'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1285,7 +1285,7 @@ const visitDue = v => Math.max(0, Math.round(((+v.price || 0) - visitPaid(v)) * 
 const clientVisits = id => S.visits.filter(v => v.clientId === id).sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.createdAt || 0) - (a.createdAt || 0));
 const nextCheck = id => clientVisits(id).find(v => v.nextDate)?.nextDate || '';
 const clientDue = id => S.packages.filter(p => p.clientId === id).reduce((s, p) => s + pkgDue(p), 0) + S.visits.filter(v => v.clientId === id).reduce((s, v) => s + visitDue(v), 0);
-const clientActive = id => { const lim = isoOf(new Date(Date.now() - 92 * 864e5)), nc = nextCheck(id); const ps = clientPkgs(id), vs = clientVisits(id); if (!ps.length && !vs.length) return true; return ps.some(pkgOpen) || ps.some(toRenew) || vs.some(v => v.date >= lim) || (nc && nc >= todayISO()); };
+const clientActive = id => { if (isInactive(id)) return false; const lim = isoOf(new Date(Date.now() - 92 * 864e5)), nc = nextCheck(id); const ps = clientPkgs(id), vs = clientVisits(id); if (!ps.length && !vs.length) return true; return ps.some(pkgOpen) || ps.some(toRenew) || vs.some(v => v.date >= lim) || (nc && nc >= todayISO()); };
 function visitRow(v) {
   const due = visitDue(v), price = +v.price || 0;
   return `<button type="button" class="vs-row" data-act="edit-visit" data-id="${esc(v.id)}"><span class="l"><b>${esc(VISIT[v.kind]?.l || 'Visita')}</b><small class="muted">${dShort(v.date)}${v.weight ? ' · ' + String(v.weight).replace('.', ',') + ' kg' : ''}${S.diets.some(d => d.visitId === v.id) ? ' · dieta' : ''}${v.notes ? ' · ' + esc(v.notes) : ''}</small></span>
@@ -1318,7 +1318,11 @@ function pkgNearEnd(p) {
   if (end && end >= today) { const days = Math.round((new Date(end + 'T12:00:00') - new Date(today + 'T12:00:00')) / 864e5); if (days <= NEAR_DAYS) why.push(days === 0 ? 'scade oggi' : days === 1 ? 'scade domani' : `scade tra ${days} giorni (${dShort(end)})`); }
   return why.join(' · ');
 }
-const nearEndPkgs = () => S.packages.filter(p => pkgNearEnd(p)).sort((a, b) => String(pkgEnd(a)).localeCompare(String(pkgEnd(b))));
+// Clienti disattivati: restano con tutti i loro dati, ma escono da liste, avvisi e scelte del cliente
+const isInactive = id => !!byId('clients', id)?.inactive;
+const clientChoices = (cur, blank) => [...(blank ? [{ v: '', l: blank }] : []), ...clientsSorted().filter(c => !c.inactive || c.id === cur).map(c => ({ v: c.id, l: c.name + (c.inactive ? ' (disattivato)' : '') }))];
+const firstActiveClient = () => clientsSorted().find(c => !c.inactive) || clientsSorted()[0];
+const nearEndPkgs = () => S.packages.filter(p => !isInactive(p.clientId) && pkgNearEnd(p)).sort((a, b) => String(pkgEnd(a)).localeCompare(String(pkgEnd(b))));
 function renewPreset(p) {
   const start = todayISO();
   return { kind: p.kind, months: p.months, perWeek: p.perWeek, lessons: p.kind === 'pt' ? pkgLessons(p.months, p.perWeek) : 0, price: p.price, startDate: start, endDate: calcEnd(start, p.months), clientId: p.clientId };
@@ -1379,8 +1383,9 @@ function clientSummary(c) {
   else if (vs.length) line = `${VISIT[vs[0].kind]?.l || 'Visita'} del ${dShort(vs[0].date)}`;
   else line = ps.length ? 'Nessun abbonamento in corso' : 'Nessun abbonamento';
   const pills = [];
-  if (ps.some(p => pkgNearEnd(p))) pills.push('<span class="pill warn">Quasi al termine</span>');
-  if (ps.some(toRenew)) pills.push('<span class="pill warn">Da rinnovare</span>');
+  if (c.inactive) pills.push('<span class="pill">Disattivato</span>');
+  if (!c.inactive && ps.some(p => pkgNearEnd(p))) pills.push('<span class="pill warn">Quasi al termine</span>');
+  if (!c.inactive && ps.some(toRenew)) pills.push('<span class="pill warn">Da rinnovare</span>');
   const due = clientDue(c.id); if (due > 0) pills.push(`<span class="pill neg num">Da saldare ${money0(due)}</span>`);
   return { line, pills: pills.join('') };
 }
@@ -1456,7 +1461,7 @@ function apptForm(a, preset) {
     title: isNew ? 'Nuovo appuntamento' : 'Appuntamento',
     intro: !isNew && a.done ? `<p class="muted" style="margin:0;font-size:.88rem">Già segnato come fatto${a.packageId && byId('packages', a.packageId) ? ': lezione contata in ' + esc(pkgLabel(byId('packages', a.packageId))) : ''}. Per toglierlo usa “Annulla” nel calendario.</p>` : '',
     fields: [
-      { id: 'clientId', label: 'Cliente', type: 'select', value: a.clientId || '', options: [{ v: '', l: '— scegli il cliente —' }, ...clientsSorted().map(c => ({ v: c.id, l: c.name }))] },
+      { id: 'clientId', label: 'Cliente', type: 'select', value: a.clientId || '', options: clientChoices(a.clientId, '— scegli il cliente —') },
       { id: 'service', type: 'seg', label: 'Servizio', value: a.service, options: [{ v: 'pt', l: 'PT' }, { v: 'prima', l: 'Prima visita' }, { v: 'controllo', l: 'Visita di controllo' }] },
       [{ id: 'date', label: 'Data', type: 'date', value: a.date, required: true }, { id: 'time', label: 'Ora', type: 'time', value: a.time || '', required: true }],
       { id: 'duration', label: 'Durata', type: 'select', value: String(a.duration || 60), options: [30, 45, 60, 75, 90, 120].map(m => ({ v: String(m), l: m + ' minuti' })) },
@@ -1503,14 +1508,16 @@ function clientCards() {
   let list = clientsSorted();
   if (f === 'attivi') list = list.filter(c => clientActive(c.id));
   if (f === 'da-saldare') list = list.filter(c => clientDue(c.id) > 0);
+  if (f === 'tutti') list = list.filter(c => !c.inactive);
+  if (f === 'disattivati') list = list.filter(c => c.inactive);
   if (q) list = list.filter(c => [c.name, c.phone, c.email, c.cf, c.address, c.notes].join(' ').toLowerCase().includes(q));
-  if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : 'Nessun cliente.'}</p></div>`;
+  if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : f === 'disattivati' ? 'Nessun cliente disattivato.' : 'Nessun cliente.'}</p></div>`;
   return list.map(c => { const ps = clientPkgs(c.id), open = openClients.has(c.id) || (q && list.length <= 3), sm = clientSummary(c);
     return `<article class="cl ${open ? 'open' : ''}"><div class="cl-sum" data-act="cl-toggle" data-id="${esc(c.id)}"><div class="t"><button type="button" class="cl-name" data-act="client-pays" data-id="${esc(c.id)}" title="Apri la scheda: dati, pagamenti e fatture">${esc(c.name)}</button><small>${esc(sm.line)}</small></div>${sm.pills ? `<div class="pills">${sm.pills}</div>` : ''}<button type="button" class="cl-chev" data-act="cl-toggle" data-id="${esc(c.id)}" aria-expanded="${open}" aria-label="${open ? 'Chiudi' : 'Apri'} ${esc(c.name)}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></div>
       <div class="cl-body" ${open ? '' : 'hidden'}>
       ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
         return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
-      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica cliente</button></div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}</div></article>`; }).join('');
+      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica cliente</button>${c.inactive ? `<button class="btn small primary" data-act="client-reactivate" data-id="${esc(c.id)}">Riattiva</button>` : `<button class="btn small ghost" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}</div></article>`; }).join('');
 }
 VIEWS.clienti = () => {
   const today = todayISO(), ym = ymOf(today), soon = isoOf(new Date(Date.now() + 30 * 864e5));
@@ -1520,7 +1527,7 @@ VIEWS.clienti = () => {
   const visitsM = S.visits.filter(v => ymOf(v.date) === ym).length;
   const nActiveAll = S.clients.filter(c => clientActive(c.id)).length;
   const lessonsM = S.packages.reduce((s, p) => s + (+pkgByMonth(p)[ym] || 0), 0);
-  const expiring = S.packages.filter(toRenew);
+  const expiring = S.packages.filter(p => !isInactive(p.clientId) && toRenew(p));
   const f = S.ui.cFilter || 'attivi';
   return `
   <div class="head title-only"><div><div class="eyebrow">Clienti</div></div>
@@ -1536,7 +1543,7 @@ VIEWS.clienti = () => {
   <div class="cl-tools">
     <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button type="button" class="btn small ghost" data-act="cl-all" data-v="open">Apri tutti</button><button type="button" class="btn small ghost" data-act="cl-all" data-v="close">Chiudi tutti</button></div>
-    <div class="seg" role="group" aria-label="Filtra clienti" style="min-width:min(100%,340px)">${[['attivi', 'In corso'], ['da-saldare', 'Da saldare'], ['tutti', 'Tutti']].map(([v, l]) => `<button type="button" data-act="cfilter" data-v="${v}" aria-pressed="${f === v}">${l}</button>`).join('')}</div>
+    <div class="seg" role="group" aria-label="Filtra clienti" style="min-width:min(100%,420px)">${[['attivi', 'In corso'], ['da-saldare', 'Da saldare'], ['tutti', 'Tutti'], ['disattivati', 'Disattivati']].map(([v, l]) => `<button type="button" data-act="cfilter" data-v="${v}" aria-pressed="${f === v}">${l}</button>`).join('')}</div>
   </div>
   ${S.clients.length ? `<div class="cl-list" id="cl-list">${clientCards()}</div>` : `<section class="panel"><div class="empty"><p>Qui tieni traccia dei clienti: pacchetti PT e Coaching, lezioni fatte, visite nutrizionali e pagamenti.</p><button class="btn primary" data-act="new-client">Aggiungi il primo cliente</button></div></section>`}`;
 };
@@ -1578,13 +1585,13 @@ function pkgForm(p, clientId, preset) {
   const isNew = !p;
   if (!S.clients.length) { toast('Aggiungi prima un cliente.', true); return; }
   const renewing = !p && !!preset;
-  p = p || preset || { kind: 'pt', months: 3, perWeek: 1, startDate: todayISO(), clientId: clientId || clientsSorted()[0].id };
+  p = p || preset || { kind: 'pt', months: 3, perWeek: 1, startDate: todayISO(), clientId: clientId || firstActiveClient().id };
   const monthOpts = k => PKG_MONTHS[k].map(m => ({ v: String(m), l: m + ' mesi' }));
   openForm({
     title: renewing ? 'Rinnova abbonamento' : isNew ? 'Nuovo pacchetto' : 'Modifica pacchetto',
     intro: renewing ? `<p class="muted" style="margin:0;font-size:.88rem">Nuovo abbonamento per <b>${esc(byId('clients', p.clientId)?.name || '')}</b>, con gli stessi dati del precedente. Il precedente resta nello storico con le sue lezioni e i suoi pagamenti. Cambia quello che serve.</p>` : '',
     fields: [
-      { id: 'clientId', label: 'Cliente', type: 'select', value: p.clientId, options: clientsSorted().map(c => ({ v: c.id, l: c.name })) },
+      { id: 'clientId', label: 'Cliente', type: 'select', value: p.clientId, options: clientChoices(p.clientId) },
       { id: 'kind', type: 'seg', label: 'Tipo', value: p.kind, options: [{ v: 'pt', l: 'PT' }, { v: 'coaching', l: 'Coaching' }] },
       [{ id: 'months', label: 'Durata', type: 'select', value: String(p.months), options: monthOpts(p.kind) }, { id: 'perWeek', label: 'Lezioni a settimana', type: 'select', value: String(p.perWeek || 1), options: [{ v: '1', l: '1 a settimana' }, { v: '2', l: '2 a settimana' }] }],
       [{ id: 'startDate', label: 'Data di inizio', type: 'date', value: p.startDate || todayISO(), required: true }, { id: 'endDate', label: 'Data di scadenza', type: 'date', value: pkgEnd(p), required: true, hint: 'Proposta in base alla durata. Puoi cambiarla.' }],
@@ -1625,12 +1632,12 @@ function visitForm(v, clientId, preset) {
   const accs = accOptions();
   const prevVisits = clientId ? clientVisits(clientId) : [];
   const apptId = preset?.apptId || '';
-  v = v || { kind: prevVisits.length ? 'controllo' : 'prima', date: todayISO(), clientId: clientId || clientsSorted()[0].id, price: prevVisits.find(x => x.kind === (preset?.kind || 'controllo'))?.price ?? (preset?.kind === 'prima' ? prevVisits.find(x => x.kind === 'prima')?.price ?? '' : ''), ...(preset ? { kind: preset.kind, date: preset.date } : {}) };
+  v = v || { kind: prevVisits.length ? 'controllo' : 'prima', date: todayISO(), clientId: clientId || firstActiveClient().id, price: prevVisits.find(x => x.kind === (preset?.kind || 'controllo'))?.price ?? (preset?.kind === 'prima' ? prevVisits.find(x => x.kind === 'prima')?.price ?? '' : ''), ...(preset ? { kind: preset.kind, date: preset.date } : {}) };
   const linked = !isNew && S.transactions.some(t => t.visitId === v.id);
   openForm({
     title: isNew ? 'Nuova visita' : VISIT[v.kind].l,
     fields: [
-      { id: 'clientId', label: 'Cliente', type: 'select', value: v.clientId, options: clientsSorted().map(c => ({ v: c.id, l: c.name })) },
+      { id: 'clientId', label: 'Cliente', type: 'select', value: v.clientId, options: clientChoices(v.clientId) },
       { id: 'kind', type: 'seg', label: 'Tipo', value: v.kind, options: [{ v: 'prima', l: 'Prima visita' }, { v: 'controllo', l: 'Visita di controllo' }] },
       [{ id: 'date', label: 'Data', type: 'date', value: v.date, required: true }, { id: 'price', label: 'Prezzo (€)', num: true, value: v.price ?? '', placeholder: '0,00' }],
       ...(isNew ? [{ id: 'paidNow', label: 'Pagata subito: registro l\'entrata', type: 'checkbox', value: true }, { id: 'accountId', label: 'Incassata sul conto', type: 'select', value: accs[0]?.v || '', options: accs.length ? accs : [{ v: '', l: 'Nessun conto: creane uno in Impostazioni' }] }] : []),
@@ -1694,6 +1701,7 @@ function paymentsSheet(id) {
   const info = [['Telefono', c.phone], ['Email', c.email], ['Indirizzo', c.address], ['Codice Fiscale', c.cf], ['Partita IVA', c.vat], ['Note', c.notes]].filter(([, v]) => v);
   const m = $('#modal');
   m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title"><header><h2 id="m-title">${esc(c.name)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header><div class="body">
+    ${c.inactive ? `<div class="pk-row" style="padding:10px 12px;border-radius:var(--r);background:var(--surface-2)"><span><b>Cliente disattivato</b>${c.inactiveSince ? ` <span class="muted">dal ${dShort(c.inactiveSince)}</span>` : ''}</span><button type="button" class="btn small primary" data-act="client-reactivate" data-id="${esc(id)}">Riattiva</button></div>` : ''}
     <div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Dati personali</b><button type="button" class="btn small ghost" data-act="edit-client" data-id="${esc(id)}">Modifica dati</button></div>
       ${info.length ? info.map(([k, v]) => `<div class="list-row"><div class="l"><span class="muted">${k}</span></div><span style="overflow-wrap:anywhere;text-align:right;${k === 'Codice Fiscale' || k === 'Partita IVA' ? 'font-family:var(--f-data);' : ''}">${esc(v)}</span></div>`).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun dato inserito: aggiungi indirizzo e codice fiscale con “Modifica dati”.</p>'}</div>
     ${sheetPayStatus(id, tot, pays.length, dues)}
@@ -2243,7 +2251,7 @@ function txForm(t, preset) {
       [{ id: 'accountId', label: 'Conto', type: 'select', value: t.accountId, options: accs }, { id: 'toAccountId', label: 'Verso il conto', type: 'select', value: t.toAccountId || (accs.find(a => a.v !== t.accountId) || accs[0]).v, options: accs }],
       { id: 'categoryId', label: 'Categoria', type: 'select', value: t.categoryId || '', options: [{ v: '', l: '—' }] },
       { id: 'scope', type: 'seg', label: 'Ambito', value: t.scope || catScope(cat(t.categoryId)), options: [{ v: 'lavoro', l: 'Lavoro' }, { v: 'personale', l: 'Personale' }] },
-      [{ id: 'clientId', label: 'Cliente', type: 'select', value: t.clientId || '', options: [{ v: '', l: '— nessun cliente —' }, ...clientsSorted().map(c => ({ v: c.id, l: c.name }))] },
+      [{ id: 'clientId', label: 'Cliente', type: 'select', value: t.clientId || '', options: clientChoices(t.clientId, '— nessun cliente —') },
        { id: 'link', label: 'Riferito a', type: 'select', value: t.packageId ? 'p:' + t.packageId : t.visitId ? 'v:' + t.visitId : '', options: [{ v: '', l: '—' }] }],
       { id: 'byOther', label: 'Pagata da un\'altra persona: la registro per tenerne traccia, ma non conta nelle mie spese né nei miei conti', type: 'checkbox', value: !!t.paidBy },
       { id: 'paidBy', label: 'Chi ha pagato', value: t.paidBy || '', placeholder: 'Es. Marco, i miei genitori, l\'inquilino' }
@@ -2867,6 +2875,20 @@ document.addEventListener('click', e => {
   if (a === 'cal-today') { S.ui.calDate = todayISO(); render(); return; }
   if (a === 'cal-day') { S.ui.calDate = t.dataset.d; S.ui.calMode = 'settimana'; render(); return; }
   if (a === 'cal-move') { const d = S.ui.calDate || todayISO(); S.ui.calDate = (S.ui.calMode || 'settimana') === 'mese' ? addMonths(ymOf(d), +t.dataset.d) + '-01' : addDays(d, 7 * +t.dataset.d); render(); return; }
+  if (a === 'client-deactivate') {
+    if (!t.classList.contains('armed')) { t.classList.add('armed'); t.textContent = 'Conferma: disattiva'; return; }
+    const c = byId('clients', id); if (!c) return;
+    const fut = S.appointments.filter(x => x.clientId === id && !x.done && !apptPast(x)).length;
+    openClients.delete(id); saveOpenClients();
+    put('clients', id, { ...strip(c), inactive: true, inactiveSince: todayISO() }).then(ok => ok && toast(`${c.name} disattivato. Lo ritrovi sotto “Disattivati”.` + (fut ? ` Ha ancora ${fut} appuntament${fut === 1 ? 'o' : 'i'} in calendario.` : '')));
+    return;
+  }
+  if (a === 'client-reactivate') {
+    const c = byId('clients', id); if (!c) return;
+    const { inactive, inactiveSince, ...rest } = strip(c);
+    put('clients', id, rest).then(ok => { if (ok) { toast(`${c.name} riattivato`); if (!$('#modal').hidden && $('#m-title')?.textContent === c.name) paymentsSheet(id); } });
+    return;
+  }
   if (a === 'client-pays') return paymentsSheet(id);
   if (a === 'new-invoice') return invoiceForm(null, t.dataset.client);
   if (a === 'edit-invoice') return invoiceForm(byId('invoices', id));
