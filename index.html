@@ -177,6 +177,17 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 @media (max-width:760px){ .scope-bar .seg{width:100%} }
 .pill.work{background:var(--accent-soft);color:var(--accent)}
 .cl-list{display:flex;flex-direction:column;gap:10px}
+details.sec{border-top:1px solid var(--line);padding-top:4px}
+details.sec>summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0;-webkit-tap-highlight-color:transparent}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary .muted{margin-left:auto;font-size:.85rem}
+details.sec>summary .chev{color:var(--muted);transition:transform .2s ease;flex:none}
+details.sec[open]>summary .chev{transform:rotate(180deg)}
+details.sec .sec-body{display:flex;flex-direction:column;gap:8px;padding-bottom:6px}
+.pay-status{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.pay-status.ok{background:var(--pos-soft);border-color:transparent}
+.pay-status.due{background:var(--neg-soft);border-color:transparent}
+@media (prefers-reduced-motion: reduce){ details.sec>summary .chev{transition:none} }
 .cal-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 .cal-tools .grp{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .cal-range{font-weight:600;min-width:150px;text-align:center}
@@ -516,7 +527,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '15'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '16'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1321,8 +1332,7 @@ function pkgHTML(p) {
     const tot = +p.lessons || 0, done = pkgDone(p), bm = pkgByMonth(p);
     const months = Object.keys(bm).sort().reverse(), shown = months.slice(0, 4);
     prog = `<div class="pk-row"><span><b class="num">${done}</b> <span class="muted">di</span> <b class="num">${tot}</b> <span class="muted">lezioni</span></span><span class="muted">${tot - done > 0 ? `${tot - done} rimast${tot - done === 1 ? 'a' : 'e'}` : 'tutte fatte'}</span></div>
-      <div class="bar ${done >= tot && tot ? 'done' : ''}"><i style="width:${tot ? Math.min(100, done / tot * 100).toFixed(1) : 0}%"></i></div>
-      <small class="muted">${shown.length ? shown.map(k => `${MESI_B[+k.slice(5) - 1]} ${k.slice(2, 4)}: <b class="num" style="color:var(--fg)">${bm[k]}</b>`).join(' · ') + (months.length > shown.length ? ' · …' : '') + (+p.prevDone ? ` · prima: ${p.prevDone}` : '') : (+p.prevDone ? `Fatte prima: ${p.prevDone}` : 'Nessuna lezione registrata')} <span aria-hidden="true">·</span> <span class="muted">previste ${(+p.perWeek || 0) * 4} al mese</span></small>`;
+      <div class="bar ${done >= tot && tot ? 'done' : ''}"><i style="width:${tot ? Math.min(100, done / tot * 100).toFixed(1) : 0}%"></i></div>`;
   } else {
     const today = todayISO(), s0 = new Date(p.startDate + 'T12:00:00'), e0 = new Date(end + 'T12:00:00'), n = new Date(today + 'T12:00:00');
     const f = p.startDate && end ? Math.max(0, Math.min(1, (n - s0) / (e0 - s0 || 1))) : 0, mNow = Math.min(+p.months, Math.max(0, Math.floor(f * +p.months) + (f < 1 && p.startDate <= today ? 1 : 0)));
@@ -1499,10 +1509,10 @@ function clientCards() {
   if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : 'Nessun cliente.'}</p></div>`;
   return list.map(c => { const ps = clientPkgs(c.id), open = openClients.has(c.id) || (q && list.length <= 3), sm = clientSummary(c);
     return `<article class="cl ${open ? 'open' : ''}"><div class="cl-sum" data-act="cl-toggle" data-id="${esc(c.id)}"><div class="t"><button type="button" class="cl-name" data-act="client-pays" data-id="${esc(c.id)}" title="Apri la scheda: dati, pagamenti e fatture">${esc(c.name)}</button><small>${esc(sm.line)}</small></div>${sm.pills ? `<div class="pills">${sm.pills}</div>` : ''}<button type="button" class="cl-chev" data-act="cl-toggle" data-id="${esc(c.id)}" aria-expanded="${open}" aria-label="${open ? 'Chiudi' : 'Apri'} ${esc(c.name)}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></div>
-      <div class="cl-body" ${open ? '' : 'hidden'}><div class="cl-contact"><div style="min-width:0"><small>${esc([c.phone, c.email].filter(Boolean).join(' · ') || c.notes || '')}</small>${(() => { const pays = clientPayments(c.id); return pays.length ? `<small class="muted" style="display:block">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'} · incassati <span class="num pos" style="font-weight:600">${money0(pays.reduce((s, t) => s + +t.amount, 0))}</span></small>` : ''; })()}</div><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica</button></div>
+      <div class="cl-body" ${open ? '' : 'hidden'}>
       ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
         return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
-      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button></div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}</div></article>`; }).join('');
+      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica cliente</button></div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}</div></article>`; }).join('');
 }
 VIEWS.clienti = () => {
   const today = todayISO(), ym = ymOf(today), soon = isoOf(new Date(Date.now() + 30 * 864e5));
@@ -1659,6 +1669,19 @@ function visitPay(v) {
   const catId = VISIT[v.kind].cat;
   txForm(null, { kind: 'entrata', categoryId: cat(catId) ? catId : '', amount: visitDue(v) || '', date: v.date, note: `${VISIT[v.kind].l} · ${byId('clients', v.clientId)?.name || ''}`, scope: 'lavoro', visitId: v.id, clientId: v.clientId });
 }
+// pagina del cliente: sezioni a tendina (aperte/chiuse ricordate finché l'app è aperta)
+const sheetOpen = new Set();
+const sheetSection = (key, title, meta, inner) => `<details class="sec" data-sec="${key}" ${sheetOpen.has(key) ? 'open' : ''}><summary><b>${title}</b><span class="muted">${meta}</span><svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><div class="sec-body">${inner}</div></details>`;
+function sheetPayStatus(id, tot, n, dues) {
+  const due = dues.reduce((s, d) => s + d.due, 0);
+  return `<div class="pay-status ${due > 0 ? 'due' : 'ok'}"><div class="pk-row"><b>Stato pagamenti</b>${due > 0 ? `<span class="pill neg num">Da saldare ${money0(due)}</span>` : '<span class="pill pos">In regola</span>'}</div>
+    <small class="muted">${n ? `Pagati ${money0(tot)} in ${n} pagament${n === 1 ? 'o' : 'i'}` : 'Nessun pagamento registrato'}${due > 0 ? '' : n ? ' · niente da saldare' : ''}</small>
+    ${dues.map(d => `<div class="pk-row" style="padding:6px 0;border-top:1px solid var(--line)"><span style="display:flex;flex-direction:column;min-width:0"><b>${esc(d.l)}</b><small class="muted">${esc(d.sub)}</small></span><span style="display:flex;gap:8px;align-items:center"><span class="pill neg num">${money0(d.due)}</span><button type="button" class="btn small" data-act="${d.act}" data-id="${esc(d.id)}">Registra pagamento</button></span></div>`).join('')}</div>`;
+}
+function sheetApptRow(a) {
+  const sv = SERVICES[a.service] || SERVICES.pt, late = !a.done && apptPast(a);
+  return `<button type="button" class="vs-row" data-act="edit-appt" data-id="${esc(a.id)}"><span class="l"><b>${esc(apptWhen(a))}</b><small class="muted">${esc(sv.l)}${a.duration ? ' · ' + a.duration + ' min' : ''}${a.notes ? ' · ' + esc(a.notes) : ''}</small></span><span>${a.done ? `<span class="pill pos">✓ ${a.service === 'pt' ? 'Lezione fatta' : 'Visita fatta'}</span>` : late ? '<span class="pill warn">Da segnare</span>' : '<span class="pill work">In programma</span>'}</span></button>`;
+}
 function paymentsSheet(id) {
   const c = byId('clients', id); if (!c) return;
   const pays = clientPayments(id), tot = pays.reduce((s, t) => s + +t.amount, 0);
@@ -1671,15 +1694,16 @@ function paymentsSheet(id) {
   m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title"><header><h2 id="m-title">${esc(c.name)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header><div class="body">
     <div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Dati personali</b><button type="button" class="btn small ghost" data-act="edit-client" data-id="${esc(id)}">Modifica dati</button></div>
       ${info.length ? info.map(([k, v]) => `<div class="list-row"><div class="l"><span class="muted">${k}</span></div><span style="overflow-wrap:anywhere;text-align:right;${k === 'Codice Fiscale' || k === 'Partita IVA' ? 'font-family:var(--f-data);' : ''}">${esc(v)}</span></div>`).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun dato inserito: aggiungi indirizzo e codice fiscale con “Modifica dati”.</p>'}</div>
-    <div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="kpi"><span class="eyebrow">Totale pagato</span><span class="v num pos">${money0(tot)}</span><span class="s">${pays.length} pagament${pays.length === 1 ? 'o' : 'i'}</span></div><div class="kpi"><span class="eyebrow">Da saldare</span><span class="v num ${dues.length ? 'neg' : ''}">${money0(dues.reduce((s, d) => s + d.due, 0))}</span><span class="s">${dues.length ? dues.length + ' da saldare' : 'Tutto saldato'}</span></div></div>
-    ${dues.length ? `<div class="vs" style="border:0;padding:0"><b>Da saldare</b>${dues.map(d => `<div class="pk-row" style="padding:4px 0"><span class="l" style="display:flex;flex-direction:column"><b>${esc(d.l)}</b><small class="muted">${esc(d.sub)}</small></span><span style="display:flex;gap:8px;align-items:center"><span class="pill neg num">${money0(d.due)}</span><button type="button" class="btn small" data-act="${d.act}" data-id="${esc(d.id)}">Registra pagamento</button></span></div>`).join('')}</div>` : ''}
-    ${years.length ? years.map(y => { const ly = pays.filter(t => t.date.startsWith(y)); return `<div class="vs"><div class="pk-row"><b>${y}</b><span class="muted num">${money0(ly.reduce((s, t) => s + +t.amount, 0))}</span></div>${ly.map(payRow).join('')}</div>`; }).join('') : '<p class="muted" style="margin:0">Nessun pagamento registrato.</p>'}
-    <div class="pk-act"><button type="button" class="btn small" data-act="client-pay-new" data-id="${esc(id)}">+ Altro pagamento</button></div>
+    ${sheetPayStatus(id, tot, pays.length, dues)}
+    ${sheetSection('pay', 'Storico pagamenti', pays.length ? `${pays.length} · ${money0(tot)}` : 'nessuno', (years.length ? years.map(y => { const ly = pays.filter(t => t.date.startsWith(y)); return `<div class="vs"><div class="pk-row"><b>${y}</b><span class="muted num">${money0(ly.reduce((s, t) => s + +t.amount, 0))}</span></div>${ly.map(payRow).join('')}</div>`; }).join('') : '<p class="muted" style="margin:0">Nessun pagamento registrato.</p>') + `
+    <div class="pk-act"><button type="button" class="btn small" data-act="client-pay-new" data-id="${esc(id)}">+ Altro pagamento</button></div>`)}
+    ${(() => { const aps = apptsSorted(S.appointments.filter(a => a.clientId === id)).reverse(), next = aps.filter(a => !a.done && !apptPast(a)).length;
+      return sheetSection('appt', 'Storico appuntamenti', aps.length ? `${aps.length}${next ? ' · ' + next + ' in arrivo' : ''}` : 'nessuno', (aps.length ? aps.map(sheetApptRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun appuntamento.</p>') + `<div class="pk-act"><button type="button" class="btn small" data-act="new-appt" data-client="${esc(id)}">+ Appuntamento</button></div>`); })()}
     <div class="vs"><div class="pk-row"><b>Fatture emesse</b><span class="muted">${invs.length ? `${invs.length} · ${money0(invs.reduce((s, i) => s + (+i.amount || 0), 0))}` : ''}</span></div>
-      ${invs.length ? invs.map(invoiceRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessuna fattura. Carica il PDF delle fatture che emetti per ritrovarle qui.</p>'}
+      ${invs.length ? invs.map(invoiceRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessuna fattura.</p>'}
       <div class="pk-act"><button type="button" class="btn small primary" data-act="new-invoice" data-client="${esc(id)}">+ Carica fattura</button></div></div>
     ${(() => { const ds = clientDiets(id); return `<div class="vs"><div class="pk-row"><b>Diete</b><span class="muted">${ds.length ? ds.length + (ds[0].date ? ' · ultima ' + dShort(ds[0].date) : '') : ''}</span></div>
-      ${ds.length ? ds.map(dietRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessuna dieta. Carica i piani alimentari che prepari per questo cliente.</p>'}
+      ${ds.length ? ds.map(dietRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessuna dieta.</p>'}
       <div class="pk-act"><button type="button" class="btn small primary" data-act="new-diet" data-client="${esc(id)}">+ Carica dieta</button></div></div>`; })()}
   </div></div>`;
   m.hidden = false;
@@ -2914,6 +2938,8 @@ document.addEventListener('click', e => {
   if (a === 'reset-pass') return resetPass();
   if (a === 'reset-config') { LS.del('luludex.firebase'); location.reload(); }
 });
+// pagina del cliente: ricordo quali sezioni a tendina sono aperte
+document.addEventListener('toggle', e => { const d = e.target; if (d.matches && d.matches('details.sec')) { if (d.open) sheetOpen.add(d.dataset.sec); else sheetOpen.delete(d.dataset.sec); } }, true);
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('#modal').hidden) closeModal();
   if (e.key === 'Enter' && e.target.matches('.tx[role=button]')) e.target.click();
