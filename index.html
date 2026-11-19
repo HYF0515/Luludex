@@ -180,7 +180,7 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 details.sec{border-top:1px solid var(--line);padding-top:4px}
 details.sec>summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0;-webkit-tap-highlight-color:transparent}
 details.sec>summary::-webkit-details-marker{display:none}
-details.sec>summary .muted{margin-left:auto;font-size:.85rem}
+details.sec>summary .chev{margin-left:auto}
 details.sec>summary .chev{color:var(--muted);transition:transform .2s ease;flex:none}
 details.sec[open]>summary .chev{transform:rotate(180deg)}
 details.sec .sec-body{display:flex;flex-direction:column;gap:8px;padding-bottom:6px}
@@ -525,7 +525,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '17'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '18'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1402,7 +1402,7 @@ function apptRow(a) {
   const c = byId('clients', a.clientId), sv = SERVICES[a.service] || SERVICES.pt, late = !a.done && apptPast(a);
   const p = a.packageId ? byId('packages', a.packageId) : null;
   return `<div class="ap-row ${a.done ? 'done' : ''} ${late ? 'late' : ''}">
-    <button type="button" class="ap-main" data-act="edit-appt" data-id="${esc(a.id)}"><span class="ap-time">${esc(a.time || '—')}</span><span class="l"><b>${esc(c?.name || 'Cliente eliminato')}</b><small>${esc(sv.l)}${a.duration ? ' · ' + a.duration + ' min' : ''}${a.notes ? ' · ' + esc(a.notes) : ''}${a.done && p ? ' · contata in ' + esc(pkgLabel(p)) : ''}</small></span></button>
+    <button type="button" class="ap-main" data-act="edit-appt" data-id="${esc(a.id)}"><span class="ap-time">${esc(a.time || '—')}</span><span class="l"><b>${esc(c?.name || 'Cliente eliminato')}</b></span></button>
     <span class="ap-side"><span class="pill ${sv.c === 'acc' ? 'work' : sv.c}">${esc(sv.l)}</span>${a.done
       ? `<span class="pill pos">✓ ${a.service === 'pt' ? 'Lezione fatta' : 'Visita fatta'}</span><button type="button" class="btn small ghost" data-act="appt-undo" data-id="${esc(a.id)}">Annulla</button>`
       : `${late ? '<span class="pill warn">Da segnare</span>' : ''}<button type="button" class="btn small ${late ? 'primary' : ''}" data-act="appt-done" data-id="${esc(a.id)}">${sv.done}</button>`}</span>
@@ -1669,10 +1669,10 @@ function visitPay(v) {
 }
 // pagina del cliente: sezioni a tendina (aperte/chiuse ricordate finché l'app è aperta)
 const sheetOpen = new Set();
-const sheetSection = (key, title, meta, inner) => `<details class="sec" data-sec="${key}" ${sheetOpen.has(key) ? 'open' : ''}><summary><b>${title}</b><span class="muted">${meta}</span><svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><div class="sec-body">${inner}</div></details>`;
+const sheetSection = (key, title, meta, inner) => `<details class="sec" data-sec="${key}" ${sheetOpen.has(key) ? 'open' : ''}><summary><b>${title}</b><svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><div class="sec-body">${inner}</div></details>`;
 function sheetPayStatus(id, tot, n, dues) {
   const due = dues.reduce((s, d) => s + d.due, 0);
-  return `<div class="pk-row pay-status"><b>Stato pagamenti</b>${due > 0 ? `<b class="num neg" style="font-size:1.05rem">Da saldare ${money(due)}</b>` : '<span class="pill pos">In regola</span>'}</div>`;
+  return `<div class="pk-row pay-status"><b>Stato pagamenti</b>${due > 0 ? `<b class="num neg">Da saldare ${money(due)}</b>` : '<span class="pill pos">In regola</span>'}</div>`;
 }
 // riga dello storico pagamenti: data, servizio, importo
 function sheetPayRow(t) {
