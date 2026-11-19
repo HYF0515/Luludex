@@ -525,7 +525,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '18'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '19'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1899,14 +1899,14 @@ function activityPanel(ym) {
       <td class="r num"><b>${done}</b></td>
       <td class="r num ${goal && done >= goal ? 'pos' : ''}">${goal ? (done >= goal ? 'Raggiunto' + (done > goal ? ` (+${done - goal})` : '') : `${goal - done} da fare`) : '<span class="muted">—</span>'}</td></tr>`;
   }).join('');
-  return `<section class="panel"><div class="panel-h"><div><h2>Obiettivi di attività</h2><span class="muted" style="font-size:.82rem">Quante lezioni, visite e coaching vuoi fare ${isCur ? 'questo mese' : 'in ' + MESI[+ym.slice(5) - 1].toLowerCase()}. Il fatto si aggiorna da solo dalla sezione Clienti.</span></div></div>
+  return `<section class="panel"><div class="panel-h"><h2>Obiettivi di attività</h2></div>
     <div class="tbl-wrap"><table><thead><tr><th>Attività</th><th class="r">Obiettivo</th><th class="r">Fatte</th><th class="r">Stato</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 function activityYearPanel(year) {
   const ms = yearMonths(year), tot = {}, goal = {};
   TARGETS.forEach(t => { tot[t.k] = 0; goal[t.k] = 0; });
   ms.forEach(ym => { const a = monthActivity(ym), g = monthTargets(ym); TARGETS.forEach(t => { tot[t.k] += a[t.k]; goal[t.k] += +g[t.k] || 0; }); });
-  return `<section class="panel"><div class="panel-h"><div><h2>Attività nel ${year}</h2><span class="muted" style="font-size:.82rem">Somma degli obiettivi mensili e di quanto fatto. Gli obiettivi si impostano nel budget mensile.</span></div></div>
+  return `<section class="panel"><div class="panel-h"><h2>Attività nel ${year}</h2></div>
     <div class="tbl-wrap"><table><thead><tr><th>Attività</th><th class="r">Obiettivo</th><th class="r">Fatte</th><th class="r">Stato</th></tr></thead><tbody>
     ${TARGETS.map(t => { const g = goal[t.k], d = tot[t.k], r = g ? d / g : 0; return `<tr><td><b>${t.l}</b>${g ? `<div class="bar ${r >= 1 ? 'done' : ''}" style="margin-top:8px"><i style="width:${Math.min(100, r * 100).toFixed(1)}%"></i></div>` : ''}</td><td class="r num">${g || '<span class="muted">—</span>'}</td><td class="r num"><b>${d}</b></td><td class="r num">${g ? pct(r) : '<span class="muted">—</span>'}</td></tr>`; }).join('')}
     </tbody></table></div></section>`;
