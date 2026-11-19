@@ -9,6 +9,12 @@ Modules: work vs personal tracking on every transaction (with a Tutto / Lavoro /
 Luludex is **not connected to any database yet**. `config.js` is empty (`window.LULUDEX_FIREBASE = null`), so the app starts directly without sign-in and keeps all data in the browser's `localStorage` (key `luludex.data`) on that device only. Use *Impostazioni → Backup completo* to save a copy.
 The Firebase code is kept intact: connecting a dedicated Luludex Firebase project later only requires filling `config.js` (see setup below).
 
+### To do when the database is connected
+- Create a dedicated Firebase project for Luludex (not Bubudex's) and fill `config.js`; publish the rules in `firebase/firestore.rules`.
+- Move invoice and diet files (now stored in the browser's IndexedDB) to Firebase Storage, so they are available on every device.
+- **Google Calendar sync (one-way, Luludex → Google):** enable the Google Calendar API in the same Google project and request the calendar permission at sign-in; Luludex creates, updates and deletes the appointments in a dedicated calendar (e.g. "Luludex – Clienti"). On the iPhone, adding the Google account in Settings → Calendar shows them in the iPhone Calendar too.
+- Move the user's local data into the database with *Scarica backup* → *Ripristina da backup*.
+
 ## How it works
 
 - Static files hosted on GitHub Pages: `index.html`, `sw.js`, `manifest.webmanifest`, `vendor/` (Firebase SDK), `icons/`.
