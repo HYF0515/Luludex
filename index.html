@@ -401,7 +401,9 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 .sub-h{margin:18px 0 6px;font-size:.95rem}
 .donut-wrap{display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px;align-items:center}
 .donut-wrap.stack{grid-template-columns:minmax(0,1fr);justify-items:center}.donut-wrap.stack .donut-leg{width:100%}
-.pie-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap,16px);align-items:stretch}.pie-grid>.panel{margin:0;min-width:0}.pie-grid>.panel.folded{align-self:start}
+.pie-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap,16px);align-items:stretch}.pie-grid>.panel{margin:0;min-width:0}
+.over-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}.over-col{min-width:0}.over-col h4{margin:4px 0 2px;font-size:.82rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+@media (max-width:760px){.over-grid{grid-template-columns:minmax(0,1fr);gap:10px}}.pie-grid>.panel.folded{align-self:start}
 /* telefono: una sotto l'altra; iPad e computer: tre sulla stessa riga */
 @media (max-width:760px){.pie-grid{grid-template-columns:minmax(0,1fr)}}
 @media (min-width:761px) and (max-width:1100px){
@@ -535,7 +537,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '29'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '30'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1294,7 +1296,11 @@ function yearBudgetPanel(year) {
   if (!y.bIds.length) return `<section class="panel ${inc ? 'bcard privacy' : ''}">${head}${inc || `<div class="empty"><p>Imposta un budget mensile per categoria per vedere come stai andando nell'anno.</p><a class="btn" href="#budget">Imposta il budget</a></div>`}</section>`;
   if (!y.elapsed) return `<section class="panel">${head}<p class="muted" style="margin:0">Il ${year} non è ancora iniziato. Budget previsto per l'anno: <b class="num">${money0(y.yearB)}</b>.</p></section>`;
   const diff = y.ytdB - y.spent;
-  const over = y.bIds.map(id => ({ c: cat(id), d: (y.byCat[id] || 0) - y.ytdCat[id] })).filter(x => x.c && x.d >= 1).sort((a, b) => b.d - a.d).slice(0, 5);
+  const over = y.bIds.map(id => ({ c: cat(id), d: (y.byCat[id] || 0) - y.ytdCat[id] })).filter(x => x.c && x.d >= 1).sort((a, b) => b.d - a.d);
+  // entrate oltre la previsione fino a oggi (stessi mesi del budget a oggi)
+  const incGot = incomeIn(String(year)), curYm = ymOf(todayISO());
+  const incOver = catsOf('entrata').map(c => { let f = 0; for (let m = 1; m <= 12; m++) { const ym = year + '-' + pad(m); if (ym <= curYm) f += monthBudget(c.id, ym); } return { c, f, d: (incGot[c.id] || 0) - f }; }).filter(x => x.f > 0 && x.d >= 1).sort((a, b) => b.d - a.d);
+  const overCol = (title, list, kind, empty) => `<div class="over-col"><h4>${title}</h4>${list.length ? list.map(x => `<div class="list-row"><div class="l">${catBadge(x.c, kind)}<span>${esc(x.c.name)}</span></div><span class="num ${kind === 'entrata' ? 'pos' : 'neg'}">+${money0(x.d)}</span></div>`).join('') : `<p class="muted" style="margin:6px 0 0;font-size:.88rem">${empty}</p>`}</div>`;
   const ratio = y.ytdB ? y.spent / y.ytdB : 0, mLeft = 12 - y.elapsed, endV = y.isCur ? y.proj : y.spent;
   // stesso stile del riquadro "Budget del mese" della sezione Mensile
   return `<section class="panel bcard privacy">${head}
@@ -1308,7 +1314,11 @@ function yearBudgetPanel(year) {
     <div class="bcard-foot"><span class="muted">${pct(ratio)}</span><span class="muted">${y.isCur ? (mLeft ? (mLeft === 1 ? 'Manca 1 mese' : `Mancano ${mLeft} mesi`) : 'Ultimo mese') : 'Anno concluso'}</span></div>
     <div class="bar ${ratio > 1 ? 'over' : ratio >= .9 ? 'near' : ''}" style="height:8px"><i style="width:${Math.min(100, ratio * 100).toFixed(1)}%"></i></div>
     <h3 class="sub-h">Categorie oltre il budget</h3>
-    ${over.length ? over.map(x => `<div class="list-row"><div class="l">${catBadge(x.c, 'spesa')}<span>${esc(x.c.name)}</span></div><span class="num neg">+${money0(x.d)}</span></div>`).join('') : `<p class="muted" style="margin:0">Nessuna categoria sopra il budget. Ottimo!</p>`}
+    <div class="over-grid">
+      ${overCol('Entrate', incOver, 'entrata', 'Nessuna sopra la previsione.')}
+      ${overCol('Spese di lavoro', over.filter(x => catScope(x.c) === 'lavoro'), 'spesa', 'Nessuna sopra il budget.')}
+      ${overCol('Spese personali', over.filter(x => catScope(x.c) !== 'lavoro'), 'spesa', 'Nessuna sopra il budget.')}
+    </div>
     ${pie}
   </section>`;
 }
