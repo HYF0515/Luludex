@@ -6,6 +6,7 @@
 <title>Luludex</title>
 <meta name="theme-color" content="#F3F4F2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#111417" media="(prefers-color-scheme: dark)">
+<script>try{document.documentElement.dataset.palette=localStorage.getItem('luludex.palette')||'inter'}catch(e){document.documentElement.dataset.palette='inter'}</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -386,6 +387,33 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
   --tag-in:rgba(142,168,137,.2);--tag-in-fg:#B9D0B4;--tag-out:rgba(201,141,128,.2);--tag-out-fg:#EBBBB0;--tag-sav:rgba(169,189,210,.18);--tag-sav-fg:#C9D7E5}}
 :root[data-theme="dark"]{--hero:#1E252D;--hero-fg:#E7EAED;--hero-tile:rgba(255,255,255,.05);--hero-muted:#98A6B4;--hero-pos:#B9D0B4;--hero-neg:#EBBBB0;--hero-neu:rgba(255,255,255,.1);
   --tag-in:rgba(142,168,137,.2);--tag-in-fg:#B9D0B4;--tag-out:rgba(201,141,128,.2);--tag-out-fg:#EBBBB0;--tag-sav:rgba(169,189,210,.18);--tag-sav-fg:#C9D7E5}
+/* Palette "Nerazzurra": blu e nero, con tocchi oro, in versione sobria (toni spenti, niente blu acceso) */
+:root[data-palette="inter"]{
+  --bg:#F1F3F7; --surface:#FFFFFF; --surface-2:#E8ECF3; --line:#DBE1EA; --fg:#111827; --muted:#5D6878;
+  --accent:#173A78; --accent-soft:#E2E9F5; --on-accent:#FFFFFF;
+  --pos:#3E6A55; --neg:#9B4A3D; --warn:#94742A; --pos-soft:#E5EFEA; --neg-soft:#F5E9E6; --warn-soft:#F4EEDB;
+  --bar:#2E5592; --bar-ok:#7C96C2; --bar-near:#BE9B4B; --bar-over:#B4685A;
+  --chart-in:#7FA392; --chart-out:#7C96C2; --chart-over:#C98D80;
+  --shadow:0 1px 2px rgba(17,24,39,.05), 0 6px 18px rgba(17,24,39,.06);
+  --hero:#DCE5F2;--hero-fg:#111827;--hero-tile:rgba(255,255,255,.8);--hero-muted:#55627A;--hero-pos:#3E6A55;--hero-neg:#9B4A3D;--hero-neu:#CBD6E8;
+  --tag-in:#DCE9E2;--tag-in-fg:#3A634F;--tag-out:#F0DFDA;--tag-out-fg:#8E4436;--tag-sav:#D2DDF0;--tag-sav-fg:#173A78}
+@media (prefers-color-scheme: dark){:root[data-palette="inter"]:not([data-theme="light"]){
+  --bg:#0B0E14; --surface:#121722; --surface-2:#1A2130; --line:#252E40; --fg:#E7EBF2; --muted:#97A2B5;
+  --accent:#9DB6E3; --accent-soft:#1A2A47; --on-accent:#0B0E14;
+  --pos:#9BC0AC; --neg:#E0A193; --warn:#D4B266; --pos-soft:#18261F; --neg-soft:#33221F; --warn-soft:#2E2817;
+  --bar:#7F9DD3; --bar-ok:#4E6D9F; --bar-near:#C9A653; --bar-over:#B4685A;
+  --chart-in:#7FA392; --chart-out:#7F9DD3; --chart-over:#C98D80;
+  --hero:#15213A;--hero-fg:#E7EBF2;--hero-tile:rgba(255,255,255,.05);--hero-muted:#9CA9C0;--hero-pos:#B4D3C2;--hero-neg:#EBBBB0;--hero-neu:rgba(255,255,255,.1);
+  --tag-in:rgba(127,163,146,.2);--tag-in-fg:#B4D3C2;--tag-out:rgba(201,141,128,.2);--tag-out-fg:#EBBBB0;--tag-sav:rgba(157,182,227,.18);--tag-sav-fg:#C9D6EE}}
+:root[data-palette="inter"][data-theme="dark"]{
+  --bg:#0B0E14; --surface:#121722; --surface-2:#1A2130; --line:#252E40; --fg:#E7EBF2; --muted:#97A2B5;
+  --accent:#9DB6E3; --accent-soft:#1A2A47; --on-accent:#0B0E14;
+  --bar:#7F9DD3; --bar-ok:#4E6D9F; --bar-near:#C9A653; --bar-over:#B4685A; --chart-out:#7F9DD3;
+  --hero:#15213A;--hero-fg:#E7EBF2;--hero-tile:rgba(255,255,255,.05);--hero-muted:#9CA9C0;--hero-neu:rgba(255,255,255,.1);--tag-sav:rgba(157,182,227,.18);--tag-sav-fg:#C9D6EE}
+/* tocco nerazzurro: sottile riga blu e nera sotto il nome dell'app */
+:root[data-palette="inter"] .brand b{background:linear-gradient(90deg,var(--accent) 0 50%,var(--fg) 50% 100%) left bottom/100% 2px no-repeat;padding-bottom:2px}
+.pal-seg{width:min(100%,420px)}
+.pal-sw{display:inline-flex;gap:3px;margin-right:6px;vertical-align:-1px}.pal-sw i{width:10px;height:10px;border-radius:50%;display:inline-block}
 .hero .pos,.hero .v.pos,.hero .num.pos{color:var(--hero-pos)!important} .hero .neg,.hero .v.neg,.hero .num.neg{color:var(--hero-neg)!important} .hero .tag.neu{background:var(--hero-neu);color:var(--hero-muted)}
 .hero{background:var(--hero);color:var(--hero-fg);border-radius:14px;padding:18px 16px 16px;display:flex;flex-direction:column;gap:14px}
 .hero-top{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
@@ -552,7 +580,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '38'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '39'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -893,6 +921,13 @@ async function del(col, id) {
   return true;
 }
 const strip = o => { const { id, ...rest } = o; return rest; };
+// palette dei colori: Nerazzurra (predefinita) o Classica; salvata nelle impostazioni e ricordata sul dispositivo
+const curPalette = () => S.settings.palette || (() => { try { return localStorage.getItem('luludex.palette'); } catch (e) { return null; } })() || 'inter';
+function applyPalette() {
+  const v = curPalette();
+  if (document.documentElement.dataset.palette !== v) document.documentElement.dataset.palette = v;
+  try { localStorage.setItem('luludex.palette', v); } catch (e) {}
+}
 async function saveSettings(patch) { return put('settings', 'main', { ...S.settings, ...patch }); }
 function updateSync() {
   const el = $('#sync'); if (!el) return;
@@ -1039,6 +1074,7 @@ const catIconSvg = (c, size = 18) => `<svg viewBox="0 0 24 24" width="${size}" h
 let raf = 0;
 function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
 function render() {
+  applyPalette();
   const v = $('#view');
   const locked = S.status === 'setup' || S.status === 'auth';
   document.body.classList.toggle('locked', locked);
@@ -2362,6 +2398,9 @@ VIEWS.impostazioni = () => {
   const rules = S.settings.rules || [];
   return `
   <div class="head with-nav"><div><div class="eyebrow">Impostazioni</div><h1>Conti, categorie e dati</h1></div></div>
+  <section class="panel"><div class="panel-h"><h2>Aspetto</h2></div>
+    <div class="seg pal-seg" role="group" aria-label="Colori dell'app">${[['inter', 'Nerazzurra', ['#173A78', '#111827', '#BE9B4B']], ['classica', 'Classica', ['#22344A', '#9FB39B', '#C9A79E']]].map(([v, l, cs]) => `<button type="button" data-act="palette" data-v="${v}" aria-pressed="${curPalette() === v}"><span class="pal-sw">${cs.map(c => `<i style="background:${c}"></i>`).join('')}</span>${l}</button>`).join('')}</div>
+  </section>
   <div class="grid g-2">
     <section class="panel"><div class="panel-h"><h2>Conti</h2><button class="btn small" data-act="new-acc">+ Conto</button></div>
       ${S.accounts.length ? [...S.accounts].sort((a, b) => !!a.archived - !!b.archived || a.name.localeCompare(b.name)).map(a => `<div class="list-row"><div class="l"><i class="dot" style="background:${esc(accColor(a))}"></i><span>${esc(a.name)}</span>${a.archived ? '<span class="pill">Archiviato</span>' : ''}</div><button class="btn small ghost" data-act="edit-acc" data-id="${esc(a.id)}">Modifica</button></div>`).join('') : '<p class="muted">Nessun conto.</p>'}
@@ -3151,6 +3190,7 @@ document.addEventListener('click', e => {
     Promise.all(ids.map(x => del('transactions', x))).then(() => toast(`${ids.length} moviment${ids.length === 1 ? 'o eliminato' : 'i eliminati'}`));
     return;
   }
+  if (a === 'palette') { saveSettings({ palette: t.dataset.v }).then(() => { applyPalette(); render(); }); return; }
   if (a === 'scope') { S.ui.scope = t.dataset.v; try { localStorage.setItem('luludex.scope', S.ui.scope); } catch (e) {} render(); return; }
   if (a === 'new-client') return clientForm();
   if (a === 'edit-client') return clientForm(byId('clients', id));
