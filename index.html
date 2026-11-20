@@ -539,7 +539,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '31'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '32'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1204,7 +1204,7 @@ function mensileHTML() {
   ${heroCard('Risparmio del mese', money0(st.net), [['Entrate', 'in', money0(st.inc), 'pos'], ['Uscite', 'out', money0(st.exp), 'neg']], '', st.net < 0 ? 'neg' : '')}
   ${monthBudgetCard(ym, st)}
   <div class="pie-grid">
-    ${box('Entrate per categoria', sp.inc, `Nessuna entrata in ${ml}.`)}
+    ${box('Entrate', sp.inc, `Nessuna entrata in ${ml}.`)}
     ${box('Spese di lavoro', sp.work, `Nessuna spesa di lavoro in ${ml}.`)}
     ${box('Spese personali', sp.pers, `Nessuna spesa personale in ${ml}.`)}
   </div>`;
