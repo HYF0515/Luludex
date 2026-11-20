@@ -6,7 +6,7 @@
 <title>Luludex</title>
 <meta name="theme-color" content="#F3F4F2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#111417" media="(prefers-color-scheme: dark)">
-<script>try{document.documentElement.dataset.palette=localStorage.getItem('luludex.palette')||'inter'}catch(e){document.documentElement.dataset.palette='inter'}</script>
+<script>document.documentElement.dataset.palette='inter'</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -412,8 +412,6 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
   --hero:#15213A;--hero-fg:#E7EBF2;--hero-tile:rgba(255,255,255,.05);--hero-muted:#9CA9C0;--hero-neu:rgba(255,255,255,.1);--tag-sav:rgba(157,182,227,.18);--tag-sav-fg:#C9D6EE}
 /* tocco nerazzurro: sottile riga blu e nera sotto il nome dell'app */
 :root[data-palette="inter"] .brand b{background:linear-gradient(90deg,var(--accent) 0 50%,var(--fg) 50% 100%) left bottom/100% 2px no-repeat;padding-bottom:2px}
-.pal-seg{width:min(100%,420px)}
-.pal-sw{display:inline-flex;gap:3px;margin-right:6px;vertical-align:-1px}.pal-sw i{width:10px;height:10px;border-radius:50%;display:inline-block}
 .hero .pos,.hero .v.pos,.hero .num.pos{color:var(--hero-pos)!important} .hero .neg,.hero .v.neg,.hero .num.neg{color:var(--hero-neg)!important} .hero .tag.neu{background:var(--hero-neu);color:var(--hero-muted)}
 .hero{background:var(--hero);color:var(--hero-fg);border-radius:14px;padding:18px 16px 16px;display:flex;flex-direction:column;gap:14px}
 .hero-top{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
@@ -580,7 +578,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '39'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '40'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -921,13 +919,8 @@ async function del(col, id) {
   return true;
 }
 const strip = o => { const { id, ...rest } = o; return rest; };
-// palette dei colori: Nerazzurra (predefinita) o Classica; salvata nelle impostazioni e ricordata sul dispositivo
-const curPalette = () => S.settings.palette || (() => { try { return localStorage.getItem('luludex.palette'); } catch (e) { return null; } })() || 'inter';
-function applyPalette() {
-  const v = curPalette();
-  if (document.documentElement.dataset.palette !== v) document.documentElement.dataset.palette = v;
-  try { localStorage.setItem('luludex.palette', v); } catch (e) {}
-}
+// palette dei colori: sempre Nerazzurra
+function applyPalette() { if (document.documentElement.dataset.palette !== 'inter') document.documentElement.dataset.palette = 'inter'; }
 async function saveSettings(patch) { return put('settings', 'main', { ...S.settings, ...patch }); }
 function updateSync() {
   const el = $('#sync'); if (!el) return;
@@ -2398,9 +2391,6 @@ VIEWS.impostazioni = () => {
   const rules = S.settings.rules || [];
   return `
   <div class="head with-nav"><div><div class="eyebrow">Impostazioni</div><h1>Conti, categorie e dati</h1></div></div>
-  <section class="panel"><div class="panel-h"><h2>Aspetto</h2></div>
-    <div class="seg pal-seg" role="group" aria-label="Colori dell'app">${[['inter', 'Nerazzurra', ['#173A78', '#111827', '#BE9B4B']], ['classica', 'Classica', ['#22344A', '#9FB39B', '#C9A79E']]].map(([v, l, cs]) => `<button type="button" data-act="palette" data-v="${v}" aria-pressed="${curPalette() === v}"><span class="pal-sw">${cs.map(c => `<i style="background:${c}"></i>`).join('')}</span>${l}</button>`).join('')}</div>
-  </section>
   <div class="grid g-2">
     <section class="panel"><div class="panel-h"><h2>Conti</h2><button class="btn small" data-act="new-acc">+ Conto</button></div>
       ${S.accounts.length ? [...S.accounts].sort((a, b) => !!a.archived - !!b.archived || a.name.localeCompare(b.name)).map(a => `<div class="list-row"><div class="l"><i class="dot" style="background:${esc(accColor(a))}"></i><span>${esc(a.name)}</span>${a.archived ? '<span class="pill">Archiviato</span>' : ''}</div><button class="btn small ghost" data-act="edit-acc" data-id="${esc(a.id)}">Modifica</button></div>`).join('') : '<p class="muted">Nessun conto.</p>'}
@@ -3190,7 +3180,6 @@ document.addEventListener('click', e => {
     Promise.all(ids.map(x => del('transactions', x))).then(() => toast(`${ids.length} moviment${ids.length === 1 ? 'o eliminato' : 'i eliminati'}`));
     return;
   }
-  if (a === 'palette') { saveSettings({ palette: t.dataset.v }).then(() => { applyPalette(); render(); }); return; }
   if (a === 'scope') { S.ui.scope = t.dataset.v; try { localStorage.setItem('luludex.scope', S.ui.scope); } catch (e) {} render(); return; }
   if (a === 'new-client') return clientForm();
   if (a === 'edit-client') return clientForm(byId('clients', id));
