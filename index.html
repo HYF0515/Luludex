@@ -398,21 +398,25 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
   --hero:#DCE5F2;--hero-fg:#111827;--hero-tile:rgba(255,255,255,.8);--hero-muted:#55627A;--hero-pos:#3E6A55;--hero-neg:#9B4A3D;--hero-neu:#CBD6E8;
   --tag-in:#DCE9E2;--tag-in-fg:#3A634F;--tag-out:#F0DFDA;--tag-out-fg:#8E4436;--tag-sav:#D2DDF0;--tag-sav-fg:#173A78}
 @media (prefers-color-scheme: dark){:root[data-palette="inter"]:not([data-theme="light"]){
-  --bg:#0B0E14; --surface:#121722; --surface-2:#1A2130; --line:#252E40; --fg:#E7EBF2; --muted:#97A2B5;
-  --accent:#9DB6E3; --accent-soft:#1A2A47; --on-accent:#0B0E14;
-  --pos:#9BC0AC; --neg:#E0A193; --warn:#D4B266; --pos-soft:#18261F; --neg-soft:#33221F; --warn-soft:#2E2817;
-  --bar:#7F9DD3; --bar-ok:#4E6D9F; --bar-near:#C9A653; --bar-over:#B4685A;
-  --chart-in:#7FA392; --chart-out:#7F9DD3; --chart-over:#C98D80;
-  --hero:#15213A;--hero-fg:#E7EBF2;--hero-tile:rgba(255,255,255,.05);--hero-muted:#9CA9C0;--hero-pos:#B4D3C2;--hero-neg:#EBBBB0;--hero-neu:rgba(255,255,255,.1);
-  --tag-in:rgba(127,163,146,.2);--tag-in-fg:#B4D3C2;--tag-out:rgba(201,141,128,.2);--tag-out-fg:#EBBBB0;--tag-sav:rgba(157,182,227,.18);--tag-sav-fg:#C9D6EE}}
+  --bg:#06080C; --surface:#121925; --surface-2:#1D2638; --line:#3A4862; --fg:#F5F7FB; --muted:#BAC4D6;
+  --accent:#B3CBF5; --accent-soft:#223A63; --on-accent:#06080C;
+  --pos:#ADD8C2; --neg:#F4B3A4; --warn:#E8C676; --pos-soft:#1A3026; --neg-soft:#3D2420; --warn-soft:#38301A;
+  --bar:#96B6EE; --bar-ok:#6F93D0; --bar-near:#E1BC62; --bar-over:#E08C7A;
+  --chart-in:#9CC7B1; --chart-out:#96B6EE; --chart-over:#E7A595;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.03);
+  --hero:#1A2C52;--hero-fg:#F5F7FB;--hero-tile:rgba(255,255,255,.08);--hero-muted:#C2CDE2;--hero-pos:#BEE3CF;--hero-neg:#F7C2B6;--hero-neu:rgba(255,255,255,.14);
+  --tag-in:rgba(156,199,177,.24);--tag-in-fg:#C6E8D6;--tag-out:rgba(231,165,149,.24);--tag-out-fg:#F7C9BE;--tag-sav:rgba(179,203,245,.22);--tag-sav-fg:#DCE7FA; color-scheme:dark}}
 :root[data-palette="inter"][data-theme="dark"]{
-  --bg:#0B0E14; --surface:#121722; --surface-2:#1A2130; --line:#252E40; --fg:#E7EBF2; --muted:#97A2B5;
-  --accent:#9DB6E3; --accent-soft:#1A2A47; --on-accent:#0B0E14;
-  --pos:#9BC0AC; --neg:#E0A193; --warn:#D4B266; --pos-soft:#18261F; --neg-soft:#33221F; --warn-soft:#2E2817;
-  --bar:#7F9DD3; --bar-ok:#4E6D9F; --bar-near:#C9A653; --bar-over:#B4685A;
-  --chart-in:#7FA392; --chart-out:#7F9DD3; --chart-over:#C98D80;
-  --hero:#15213A;--hero-fg:#E7EBF2;--hero-tile:rgba(255,255,255,.05);--hero-muted:#9CA9C0;--hero-pos:#B4D3C2;--hero-neg:#EBBBB0;--hero-neu:rgba(255,255,255,.1);
-  --tag-in:rgba(127,163,146,.2);--tag-in-fg:#B4D3C2;--tag-out:rgba(201,141,128,.2);--tag-out-fg:#EBBBB0;--tag-sav:rgba(157,182,227,.18);--tag-sav-fg:#C9D6EE; color-scheme:dark}
+  --bg:#06080C; --surface:#121925; --surface-2:#1D2638; --line:#3A4862; --fg:#F5F7FB; --muted:#BAC4D6;
+  --accent:#B3CBF5; --accent-soft:#223A63; --on-accent:#06080C;
+  --pos:#ADD8C2; --neg:#F4B3A4; --warn:#E8C676; --pos-soft:#1A3026; --neg-soft:#3D2420; --warn-soft:#38301A;
+  --bar:#96B6EE; --bar-ok:#6F93D0; --bar-near:#E1BC62; --bar-over:#E08C7A;
+  --chart-in:#9CC7B1; --chart-out:#96B6EE; --chart-over:#E7A595;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.03);
+  --hero:#1A2C52;--hero-fg:#F5F7FB;--hero-tile:rgba(255,255,255,.08);--hero-muted:#C2CDE2;--hero-pos:#BEE3CF;--hero-neg:#F7C2B6;--hero-neu:rgba(255,255,255,.14);
+  --tag-in:rgba(156,199,177,.24);--tag-in-fg:#C6E8D6;--tag-out:rgba(231,165,149,.24);--tag-out-fg:#F7C9BE;--tag-sav:rgba(179,203,245,.22);--tag-sav-fg:#DCE7FA; color-scheme:dark}
+@media (prefers-color-scheme: dark){:root[data-palette="inter"]:not([data-theme="light"]) .panel{border-color:var(--line)}}
+:root[data-palette="inter"][data-theme="dark"] .panel{border-color:var(--line)}
 /* tocco nerazzurro: sottile riga blu e nera sotto il nome dell'app */
 :root[data-palette="inter"] .brand b{background:linear-gradient(90deg,var(--accent) 0 50%,var(--fg) 50% 100%) left bottom/100% 2px no-repeat;padding-bottom:2px}
 .hero .pos,.hero .v.pos,.hero .num.pos{color:var(--hero-pos)!important} .hero .neg,.hero .v.neg,.hero .num.neg{color:var(--hero-neg)!important} .hero .tag.neu{background:var(--hero-neu);color:var(--hero-muted)}
@@ -581,7 +585,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '41'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '42'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
