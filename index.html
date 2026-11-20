@@ -552,7 +552,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '37'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '38'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2570,8 +2570,8 @@ function txForm(t, preset) {
       if (!g && sel.dataset.kind !== ck) {
         let opts = catOptions(isExp ? 'spesa' : v.kind);
         if (isExp) opts = opts.filter(o => !o.v || catScope(cat(o.v)) === sc);
-        sel.innerHTML = opts.map(o => `<option value="${esc(o.v)}">${esc(o.l)}</option>`).join('') || '<option value="">Nessuna categoria</option>';
-        if (opts.some(o => o.v === keep)) sel.value = keep;
+        sel.innerHTML = `<option value="">${opts.length ? 'Scegli categoria' : 'Nessuna categoria'}</option>` + opts.map(o => `<option value="${esc(o.v)}">${esc(o.l)}</option>`).join('');
+        sel.value = opts.some(o => o.v === keep) ? keep : '';
         sel.dataset.kind = ck;
       }
       showField(form, 'scope', !g && v.kind !== 'entrata');
@@ -2594,6 +2594,7 @@ function txForm(t, preset) {
       if (!v.date) return 'Inserisci la data.';
       if ((v.kind === 'giroconto' || v.kind === 'accantonamento') && v.accountId === v.toAccountId) return v.kind === 'giroconto' ? 'Scegli due conti diversi per il giroconto.' : 'Scegli un fondo diverso dal conto di partenza.';
       if (v.kind === 'accantonamento' && !v.categoryId) return 'Scegli la categoria della spesa futura (es. Tasse).';
+      if ((v.kind === 'spesa' || v.kind === 'entrata') && !v.categoryId) return 'Scegli la categoria del movimento.';
       if (v.kind === 'spesa' && v.byOther && !String(v.paidBy || '').trim()) return 'Scrivi chi ha pagato la spesa.';
     },
     async onSubmit(v) {
