@@ -552,7 +552,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '36'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '37'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2532,8 +2532,8 @@ function txForm(t, preset) {
       [{ id: 'date', label: 'Data', type: 'date', value: t.date, required: true }, { id: 'rate', label: 'Cambio', num: true, value: t.rate && txCur(t) !== BASE ? +(+t.rate).toFixed(6) : '', hint: '' }],
       { id: 'note', label: 'Descrizione', value: t.note || '', placeholder: 'Es. Spesa Esselunga' },
       [{ id: 'accountId', label: 'Conto', type: 'select', value: t.accountId, options: accs }, { id: 'toAccountId', label: 'Verso il conto', type: 'select', value: t.toAccountId || (accs.find(a => a.v !== t.accountId) || accs[0]).v, options: accs }],
+      { id: 'scope', type: 'seg', label: 'Tipo di spesa', value: t.scope || catScope(cat(t.categoryId)), options: [{ v: 'lavoro', l: 'Spesa di lavoro' }, { v: 'personale', l: 'Spesa personale' }] },
       { id: 'categoryId', label: 'Categoria', type: 'select', value: t.categoryId || '', options: [{ v: '', l: '—' }] },
-      { id: 'scope', type: 'seg', label: 'Ambito', value: t.scope || catScope(cat(t.categoryId)), options: [{ v: 'lavoro', l: 'Lavoro' }, { v: 'personale', l: 'Personale' }] },
       [{ id: 'clientId', label: 'Cliente', type: 'select', value: t.clientId || '', options: clientChoices(t.clientId, '— nessun cliente —') },
        { id: 'link', label: 'Riferito a', type: 'select', value: t.packageId ? 'p:' + t.packageId : t.visitId ? 'v:' + t.visitId : '', options: [{ v: '', l: '—' }] }],
       { id: 'byOther', label: 'Pagata da un\'altra persona: la registro per tenerne traccia, ma non conta nelle mie spese né nei miei conti', type: 'checkbox', value: !!t.paidBy },
@@ -2566,15 +2566,15 @@ function txForm(t, preset) {
       }
       const kh = form.querySelector('[data-f="kind"] small'); if (kh) kh.hidden = !ac;
       const sel = form.elements.categoryId, keep = sel.value || t.categoryId;
-      if (!g && sel.dataset.kind !== v.kind) {
-        const opts = catOptions(v.kind === 'accantonamento' ? 'spesa' : v.kind);
+      const isExp = v.kind === 'spesa' || v.kind === 'accantonamento', sc = form.elements.scope.value || 'personale', ck = v.kind + (isExp ? '|' + sc : '');
+      if (!g && sel.dataset.kind !== ck) {
+        let opts = catOptions(isExp ? 'spesa' : v.kind);
+        if (isExp) opts = opts.filter(o => !o.v || catScope(cat(o.v)) === sc);
         sel.innerHTML = opts.map(o => `<option value="${esc(o.v)}">${esc(o.l)}</option>`).join('') || '<option value="">Nessuna categoria</option>';
         if (opts.some(o => o.v === keep)) sel.value = keep;
-        sel.dataset.kind = v.kind;
+        sel.dataset.kind = ck;
       }
       showField(form, 'scope', !g && v.kind !== 'entrata');
-      if (ev && ev.target && ev.target.name === 'scope') form.dataset.scopeTouched = '1';
-      if (!form.dataset.scopeTouched && !t.scope && (!ev || ['categoryId', 'kind'].includes(ev.target?.name))) setSeg(form, 'scope', catScope(cat(sel.value)));
       // entrate di lavoro: cliente e pacchetto/visita a cui si riferiscono
       const workIn = v.kind === 'entrata', cSel = form.elements.clientId, lSel = form.elements.link, nm = ev?.target?.name;
       showField(form, 'clientId', workIn && S.clients.length > 0); showField(form, 'link', workIn && !!cSel.value);
