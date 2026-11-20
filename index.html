@@ -400,6 +400,8 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 .kpis.k3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .sub-h{margin:18px 0 6px;font-size:.95rem}
 .donut-wrap{display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px;align-items:center}
+.donut-wrap.stack{grid-template-columns:minmax(0,1fr);justify-items:center}.donut-wrap.stack .donut-leg{width:100%}
+.pie-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--gap,16px);align-items:start}.pie-grid>.panel{margin:0}
 .donut{position:relative;width:200px;max-width:100%;aspect-ratio:1}
 .donut svg{width:100%;height:100%;display:block}
 .donut-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
@@ -525,7 +527,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '23'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '24'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1113,7 +1115,7 @@ const sortTx = l => [...l].sort((a, b) => b.date.localeCompare(a.date) || (b.cre
 
 /* ---------- viste ---------- */
 const VIEWS = {};
-const SCOPED_VIEWS = ['panoramica', 'mensile', 'movimenti', 'budget'];
+const SCOPED_VIEWS = ['mensile', 'movimenti', 'budget'];
 const scopeBar = () => `<div class="scope-bar"><div class="seg" role="group" aria-label="Mostra">${[['tutto', 'Tutto'], ['lavoro', 'Lavoro'], ['personale', 'Personale']].map(([v, l]) => `<button type="button" data-act="scope" data-v="${v}" aria-pressed="${(S.ui.scope || 'tutto') === v}">${l}</button>`).join('')}</div></div>`;
 // Riepilogo in evidenza (stile "card" morbida): patrimonio netto, entrate, uscite, risparmio
 // Riquadro di riepilogo, uguale in tutte le sezioni: un numero grande e 3-4 caselle sotto
@@ -1171,17 +1173,39 @@ function yearByCat(year) {
   for (const t of S.transactions) if (isOut(t) && inScope(t) && String(t.date).startsWith(year)) o[t.categoryId] = (o[t.categoryId] || 0) + (+t.amount || 0);
   return o;
 }
+// Panoramica: sempre su tutto (lavoro + personale), senza il selettore Tutto / Lavoro / Personale
 VIEWS.panoramica = () => {
+  const keep = S.ui.scope; S.ui.scope = 'tutto';
+  try { return panoramicaHTML(); } finally { S.ui.scope = keep; }
+};
+function yearSplit(year) {
+  const o = { inc: {}, work: {}, pers: {} };
+  for (const t of S.transactions) {
+    if (!String(t.date).startsWith(year)) continue;
+    const v = +t.amount || 0;
+    if (t.kind === 'entrata') o.inc[t.categoryId] = (o.inc[t.categoryId] || 0) + v;
+    else if (isOut(t)) { const b = txScope(t) === 'lavoro' ? o.work : o.pers; b[t.categoryId] = (b[t.categoryId] || 0) + v; }
+  }
+  return o;
+}
+function splitPanels(year) {
+  const sp = yearSplit(year);
+  const one = (title, data, empty, label) => `<section class="panel"><div class="panel-h"><h2>${title}</h2></div>${catDonut(data, { all: true, stack: true, label }) || `<p class="muted" style="margin:0">${empty}</p>`}</section>`;
+  return `<div class="pie-grid">
+    ${one('Entrate', sp.inc, `Nessuna entrata nel ${year}.`, 'Ripartizione delle entrate')}
+    ${one('Spese di lavoro', sp.work, `Nessuna spesa di lavoro nel ${year}.`, 'Ripartizione delle spese di lavoro')}
+    ${one('Spese personali', sp.pers, `Nessuna spesa personale nel ${year}.`, 'Ripartizione delle spese personali')}
+  </div>`;
+}
+function panoramicaHTML() {
   const y = S.ui.year, yt = yearTotals(y), nw = sumObj(balances()) + investTotal();
   return `
   <div class="head with-nav"><div><div class="eyebrow">Panoramica</div><h1>Anno ${y}</h1></div>
     <div class="head-actions">${eyeBtn()}<div class="month-nav"><button class="icon-btn" data-act="year" data-d="-1" aria-label="Anno precedente">‹</button>${yearPick('year')}<button class="icon-btn" data-act="year" data-d="1" aria-label="Anno successivo">›</button></div><button class="btn primary hide-m" data-act="new-tx">+ Movimento</button></div></div>
   ${heroSummary(nw, yt.inc, yt.out, yt.net)}
-  ${yearBudgetPanel(y)}
-  <section class="panel"><div class="panel-h"><h2>Spese per categoria</h2></div>
-    ${catBars(yearByCat(y), `Nessuna spesa registrata nel ${y}.`)}
-  </section>`;
-};
+  ${splitPanels(y)}
+  ${yearBudgetPanel(y)}`;
+}
 
 const guessCat = re => S.categories.find(c => c.kind === 'spesa' && re.test(c.name))?.id || '';
 function moreMenu() {
@@ -1214,11 +1238,11 @@ function yearBudget(year) {
   return { year, budgets, ann, bIds, monthlyB, monthB, ytdCat, elapsed, frac, byCat, byMonth, other, spent, ytdB: sumObj(ytdCat), yearB: monthlyB * 12, proj: frac > 0 ? spent / frac * 12 : 0, isCur: year === cy };
 }
 // Torta (ciambella) della ripartizione delle spese per categoria
-function catDonut(byCat) {
+function catDonut(byCat, o = {}) {
   const tot = sumObj(byCat);
   let rows = Object.entries(byCat).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([id, v]) => ({ c: cat(id), v }));
   if (!rows.length || !(tot > 0)) return '';
-  if (rows.length > 7) { const rest = rows.slice(6).reduce((x, r) => x + r.v, 0); rows = [...rows.slice(0, 6), { c: { name: 'Altre categorie', color: '#DCD8C7' }, v: rest }]; }
+  if (!o.all && rows.length > 7) { const rest = rows.slice(6).reduce((x, r) => x + r.v, 0); rows = [...rows.slice(0, 6), { c: { name: 'Altre categorie', color: '#DCD8C7' }, v: rest }]; }
   const R = 80, C = 2 * Math.PI * R, gap = rows.length > 1 ? 1.6 : 0;
   let off = 0, arcs = '';
   for (const r of rows) {
@@ -1226,14 +1250,13 @@ function catDonut(byCat) {
     arcs += `<circle r="${R}" cx="100" cy="100" fill="none" stroke="${esc(r.c?.color || '#C9CDD6')}" stroke-width="30" stroke-dasharray="${Math.max(0.01, len - gap).toFixed(2)} ${(C - Math.max(0.01, len - gap)).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 100 100)"><title>${esc(r.c?.name || 'Senza categoria')} · ${money(r.v)} (${pctT(r.v / tot)})</title></circle>`;
     off += len;
   }
-  return `<div class="donut-wrap"><div class="donut"><svg viewBox="0 0 200 200" role="img" aria-label="Ripartizione delle spese per categoria">${arcs}</svg><div class="donut-c"><span class="lbl">Totale</span><span class="v num">${money0(tot)}</span></div></div>
+  return `<div class="donut-wrap ${o.stack ? 'stack' : ''}"><div class="donut"><svg viewBox="0 0 200 200" role="img" aria-label="${esc(o.label || 'Ripartizione delle spese per categoria')}">${arcs}</svg><div class="donut-c"><span class="lbl">Totale</span><span class="v num">${money0(tot)}</span></div></div>
     <div class="donut-leg">${rows.map(r => `<div class="list-row"><div class="l"><i class="dot" style="background:${esc(r.c?.color || '#C9CDD6')}"></i><span>${esc(r.c?.name || 'Senza categoria')}</span></div><span class="num"><span class="muted">${pct(r.v / tot)}</span>&nbsp; ${money0(r.v)}</span></div>`).join('')}</div></div>`;
 }
 function yearBudgetPanel(year) {
   const y = yearBudget(year);
   const head = `<div class="panel-h"><h2>Budget ${year}</h2></div>`;
-  const donut = catDonut(yearByCat(year));
-  const pie = donut ? `<h3 class="sub-h">Ripartizione delle spese</h3>${donut}` : '';
+  const pie = '';
   if (!y.bIds.length) return `<section class="panel">${head}<div class="empty"><p>Imposta un budget mensile per categoria per vedere come stai andando nell'anno.</p><a class="btn" href="#budget">Imposta il budget</a></div>${pie}</section>`;
   if (!y.elapsed) return `<section class="panel">${head}<p class="muted" style="margin:0">Il ${year} non è ancora iniziato. Budget previsto per l'anno: <b class="num">${money0(y.yearB)}</b>.</p></section>`;
   const diff = y.ytdB - y.spent;
