@@ -45,6 +45,7 @@ In the old version (local mode / artifact): *Impostazioni → Scarica backup*. I
 
 ## Updating the app
 Edit the files and push. Installed apps pick up the new version the next time they are opened online. If you change the list of files in `sw.js`, also bump `CACHE`.
+After each push, check that the **pages build and deployment** run appears under the repository's *Actions* tab: GitHub occasionally skips a build, and then the site keeps the previous version (the version number is shown in *Impostazioni*). If it is missing, re-run the latest deployment from *Actions* or push again.
 
 ## Backups
 **Impostazioni → Backup completo** (JSON) or **Esporta in Excel (.xlsx)**.
