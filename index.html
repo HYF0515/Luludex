@@ -535,7 +535,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '27'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '28'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1175,6 +1175,8 @@ function monthBudgetCard(ym, st) {
   const dim = new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate(), daysLeft = cur ? dim - +today.slice(8, 10) + 1 : future ? dim : 0;
   const ratio = B ? spent / B : 0;
   return `<section class="panel bcard privacy"><div class="panel-h"><h2>Budget del mese</h2><a class="bcard-tot num" href="#budget">${money0(B)} ›</a></div>
+    ${inc}
+    ${inc ? '<h3 class="sub-h">Spese previste</h3>' : ''}
     <div class="bcard-cols">
       <div><span class="lbl">Speso</span><span class="v num neg">${money(spent)}</span></div>
       <div><span class="lbl">${left >= 0 ? 'Rimanente' : 'Oltre il budget'}</span><span class="v num ${left < 0 ? 'neg' : ''}">${money(Math.abs(left))}</span></div>
@@ -1182,7 +1184,6 @@ function monthBudgetCard(ym, st) {
     </div>
     <div class="bcard-foot"><span class="muted">${pct(ratio)}</span><span class="muted">${cur ? (daysLeft === 1 ? 'Manca 1 giorno' : `Mancano ${daysLeft} giorni`) : future ? 'Mese non iniziato' : 'Mese concluso'}</span></div>
     <div class="bar ${ratio > 1 ? 'over' : ratio >= .9 ? 'near' : ''}" style="height:8px"><i style="width:${Math.min(100, ratio * 100).toFixed(1)}%"></i></div>
-    ${inc}
   </section>`;
 }
 VIEWS.mensile = () => {
@@ -1297,6 +1298,8 @@ function yearBudgetPanel(year) {
   const ratio = y.ytdB ? y.spent / y.ytdB : 0, mLeft = 12 - y.elapsed, endV = y.isCur ? y.proj : y.spent;
   // stesso stile del riquadro "Budget del mese" della sezione Mensile
   return `<section class="panel bcard privacy">${head}
+    ${inc}
+    ${inc ? '<h3 class="sub-h">Spese previste</h3>' : ''}
     <div class="bcard-cols">
       <div><span class="lbl">${diff >= 0 ? 'Sotto il budget' : 'Sopra il budget'}</span><span class="v num ${diff >= 0 ? 'pos' : 'neg'}">${money0(Math.abs(diff))}</span></div>
       <div><span class="lbl">Budget a oggi</span><span class="v num">${money0(y.ytdB)}</span></div>
@@ -1304,7 +1307,6 @@ function yearBudgetPanel(year) {
     </div>
     <div class="bcard-foot"><span class="muted">${pct(ratio)}</span><span class="muted">${y.isCur ? (mLeft ? (mLeft === 1 ? 'Manca 1 mese' : `Mancano ${mLeft} mesi`) : 'Ultimo mese') : 'Anno concluso'}</span></div>
     <div class="bar ${ratio > 1 ? 'over' : ratio >= .9 ? 'near' : ''}" style="height:8px"><i style="width:${Math.min(100, ratio * 100).toFixed(1)}%"></i></div>
-    ${inc}
     <h3 class="sub-h">Categorie oltre il budget</h3>
     ${over.length ? over.map(x => `<div class="list-row"><div class="l">${catBadge(x.c, 'spesa')}<span>${esc(x.c.name)}</span></div><span class="num neg">+${money0(x.d)}</span></div>`).join('') : `<p class="muted" style="margin:0">Nessuna categoria sopra il budget. Ottimo!</p>`}
     ${pie}
