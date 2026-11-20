@@ -552,7 +552,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '33'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '34'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1424,11 +1424,24 @@ function txListFiltered() {
   setTimeout(bulkBar, 0);
   const inc = l.filter(t => t.kind === 'entrata').reduce((s, t) => s + +t.amount, 0), exp = l.filter(isOut).reduce((s, t) => s + +t.amount, 0);
   const all = shown.length && shown.every(t => txSel.has(t.id));
-  return `<div class="panel-h"><h2>${l.length} moviment${l.length === 1 ? 'o' : 'i'}</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill pos num">+${money(inc)}</span><span class="pill num">−${money(exp)}</span></div></div>
+  txTot = { inc, exp };
+  return `<div class="panel-h"><h2>${l.length} moviment${l.length === 1 ? 'o' : 'i'}</h2><div id="tx-tot" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${txTotHTML()}</div></div>
     ${shown.length ? `<label class="check tx-all"><input type="checkbox" id="tx-all" ${all ? 'checked' : ''}> Seleziona tutti</label>` : ''}
     ${txList(shown, { select: true })}${l.length > 400 ? `<p class="muted">Mostrati i primi 400. Restringi i filtri per vedere gli altri.</p>` : ''}`;
 }
+// Totali accanto al titolo: dei movimenti selezionati, oppure di tutti quelli filtrati
+let txTot = { inc: 0, exp: 0 };
+function txTotHTML() {
+  let { inc, exp } = txTot, lbl = '';
+  if (txSel.size) {
+    const sel = [...txSel].map(id => byId('transactions', id)).filter(Boolean);
+    inc = sel.filter(t => t.kind === 'entrata').reduce((a, t) => a + +t.amount, 0); exp = sel.filter(isOut).reduce((a, t) => a + +t.amount, 0);
+    lbl = `<span class="muted" style="font-size:.85rem">${sel.length} selezionat${sel.length === 1 ? 'o' : 'i'}</span>`;
+  }
+  return `${lbl}<span class="pill pos num">+${money(inc)}</span><span class="pill num">−${money(exp)}</span>`;
+}
 function bulkBar() {
+  const tt = $('#tx-tot'); if (tt) tt.innerHTML = txTotHTML();
   const bar = $('#bulk-bar'); if (!bar) return;
   const n = txSel.size;
   bar.hidden = !n; document.body.classList.toggle('bulk-on', !!n);
