@@ -145,6 +145,19 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .seg button{flex:1;border:0;background:transparent;padding:7px 8px;border-radius:7px;cursor:pointer;font-weight:500;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:var(--shadow)}
 .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.msel{position:relative}.msel>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;white-space:nowrap;overflow:hidden}
+.msel>summary::-webkit-details-marker{display:none}.msel>summary::after{content:'';width:7px;height:7px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(45deg) translateY(-2px);opacity:.6;flex:none}
+.msel>summary span{overflow:hidden;text-overflow:ellipsis}
+.msel-pop{position:absolute;z-index:30;top:calc(100% + 4px);left:0;min-width:max(100%,240px);max-height:min(60vh,420px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 12px 30px rgba(0,0,0,.12);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.msel-g{display:flex;flex-direction:column;gap:2px}.msel-g .check{padding:4px 0;display:flex;align-items:center;gap:8px}
+.msel-act{display:flex;justify-content:space-between;gap:8px;padding:8px 0 0;border-top:1px solid var(--line)}
+.tx-all{margin:2px 0 6px;font-size:.88rem}
+.tx-selrow{display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center}.tx-selrow.sel .tx{background:var(--surface-2)}
+.tx-check{display:flex;align-items:center;justify-content:center;height:100%;cursor:pointer;border-bottom:1px solid var(--line)}.tx-check input{width:17px;height:17px;cursor:pointer}
+.bulk-bar{position:sticky;bottom:12px;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--fg);color:var(--bg);border-radius:var(--r);padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.18);margin-top:10px}
+.bulk-bar .btn.ghost,.bulk-bar .btn:not(.primary){color:inherit;border-color:rgba(255,255,255,.35);background:transparent}
+body.bulk-on .fab{display:none!important}
+@media (max-width:760px){.bulk-bar{bottom:calc(92px + env(safe-area-inset-bottom));padding:8px 10px;gap:8px}.bulk-bar .btn{padding:6px 10px}.filters #f-cat-wrap{grid-column:1/-1}.msel-pop{min-width:100%}}
 
 .pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:.78rem;font-weight:600;background:var(--surface-2);color:var(--muted);white-space:nowrap}
 .pill.pos{background:var(--pos-soft);color:var(--pos)} .pill.neg{background:var(--neg-soft);color:var(--neg)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.acc{background:var(--accent-soft);color:var(--accent)}
@@ -539,7 +552,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '32'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '33'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -614,7 +627,7 @@ function nextDate(iso, f) {
 /* ---------- stato ---------- */
 const COLS = ['accounts', 'categories', 'transactions', 'holdings', 'goals', 'recurring', 'snapshots', 'clients', 'packages', 'visits', 'invoices', 'diets', 'appointments'];
 const S = { fs: null, user: null, synced: false, status: 'loading', settings: {},
-  ui: { budgetMode: 'mese', budgetYear: todayISO().slice(0, 4), year: todayISO().slice(0, 4), month: ymOf(todayISO()), q: '', fAcc: '', fCat: '', fKind: '', budgetMonth: ymOf(todayISO()), scope: (() => { try { return localStorage.getItem('luludex.scope') || 'tutto'; } catch (e) { return 'tutto'; } })(), cFilter: 'attivi', cq: '' } };
+  ui: { budgetMode: 'mese', budgetYear: todayISO().slice(0, 4), year: todayISO().slice(0, 4), month: ymOf(todayISO()), q: '', fAcc: '', fCat: '', fCats: [], fKind: '', budgetMonth: ymOf(todayISO()), scope: (() => { try { return localStorage.getItem('luludex.scope') || 'tutto'; } catch (e) { return 'tutto'; } })(), cFilter: 'attivi', cq: '' } };
 COLS.forEach(c => S[c] = []);
 const byId = (col, id) => S[col].find(x => x.id === id);
 const cat = id => byId('categories', id);
@@ -1109,9 +1122,10 @@ function txRow(t) {
   else { const fromFund = !t.paidBy && t.kind === 'spesa' && isReserve(t.accountId); title = t.note || c?.name || 'Movimento'; sub = [t.kind !== 'entrata' && txScope(t) === 'lavoro' ? 'Lavoro' : '', t.clientId ? byId('clients', t.clientId)?.name : '', t.paidBy ? 'Pagata da ' + t.paidBy : '', fromFund ? 'Pagato dal fondo' : '', c?.name, t.paidBy ? '' : a?.name].filter(Boolean).join(' · '); cls = t.kind === 'entrata' ? 'pos' : (fromFund || t.paidBy) ? 'muted' : ''; sign = t.kind === 'entrata' ? '+' : '−'; }
   return `<div class="tx" data-act="edit-tx" data-id="${esc(t.id)}" tabindex="0" role="button">${catBadge(c, t.kind)}<div class="tx-main"><b>${esc(title)}</b><small>${esc(sub)}</small></div><div class="tx-amt num ${cls}">${sign}${txCur(t) !== BASE ? moneyC(txOrig(t), txCur(t)) : money(+t.amount)}${txCur(t) !== BASE ? `<small class="muted" style="display:block;font-weight:400;font-size:.75rem">≈ ${money(+t.amount)}</small>` : ''}</div></div>`;
 }
-function txList(list, { group = true } = {}) {
+function txList(list, { group = true, select = false } = {}) {
   if (!list.length) return `<div class="empty"><p>Nessun movimento da mostrare.</p><button class="btn primary" data-act="new-tx">Aggiungi un movimento</button></div>`;
-  if (!group) return list.map(txRow).join('');
+  const row = select ? t => `<div class="tx-selrow ${txSel.has(t.id) ? 'sel' : ''}"><label class="tx-check" aria-label="Seleziona"><input type="checkbox" data-txsel="${esc(t.id)}" ${txSel.has(t.id) ? 'checked' : ''}></label>${txRow(t)}</div>` : txRow;
+  if (!group) return list.map(row).join('');
   let out = '', cur = '';
   for (const t of list) {
     if (t.date !== cur) {
@@ -1119,7 +1133,7 @@ function txList(list, { group = true } = {}) {
       const day = list.filter(x => x.date === cur).reduce((s, x) => s + (x.kind === 'entrata' ? +x.amount : isOut(x) ? -x.amount : 0), 0);
       out += `<div class="txday"><span>${dayLabel(cur)}</span><span class="num">${day ? (day > 0 ? '+' : '−') + money(Math.abs(day)) : ''}</span></div>`;
     }
-    out += txRow(t);
+    out += row(t);
   }
   return out;
 }
@@ -1127,7 +1141,7 @@ const sortTx = l => [...l].sort((a, b) => b.date.localeCompare(a.date) || (b.cre
 
 /* ---------- viste ---------- */
 const VIEWS = {};
-const SCOPED_VIEWS = ['movimenti', 'budget'];
+const SCOPED_VIEWS = ['budget'];
 const scopeBar = () => `<div class="scope-bar"><div class="seg" role="group" aria-label="Mostra">${[['tutto', 'Tutto'], ['lavoro', 'Lavoro'], ['personale', 'Personale']].map(([v, l]) => `<button type="button" data-act="scope" data-v="${v}" aria-pressed="${(S.ui.scope || 'tutto') === v}">${l}</button>`).join('')}</div></div>`;
 // Riepilogo in evidenza (stile "card" morbida): patrimonio netto, entrate, uscite, risparmio
 // Riquadro di riepilogo, uguale in tutte le sezioni: un numero grande e 3-4 caselle sotto
@@ -1347,35 +1361,124 @@ function yearBudgetChart(W, year) {
   return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Spese mensili ${year} rispetto al budget">${g}</svg>`;
 }
 
+// Movimenti: niente Tutto/Lavoro/Personale; il filtro "Tipo" sceglie entrate, spese di lavoro o spese personali
+// e il filtro Categoria (scelta multipla) propone solo le categorie di quel tipo.
+const TX_TYPES = [['', 'Tutti'], ['entrata', 'Entrate'], ['lavoro', 'Spese di lavoro'], ['personale', 'Spese personali'], ['giroconto', 'Giroconti']];
+const txSel = new Set();
+window.addEventListener('hashchange', () => { txSel.clear(); document.body.classList.remove('bulk-on'); });
+function fCatChoices() {
+  const k = S.ui.fKind;
+  if (k === 'entrata') return [['Entrate', catsOf('entrata')]];
+  if (k === 'lavoro' || k === 'personale') return [[k === 'lavoro' ? 'Spese di lavoro' : 'Spese personali', catsOf('spesa').filter(c => catScope(c) === k)]];
+  if (k === 'giroconto' || k === 'accantonamento') return [];
+  return [['Entrate', catsOf('entrata')], ['Spese di lavoro', catsOf('spesa').filter(c => catScope(c) === 'lavoro')], ['Spese personali', catsOf('spesa').filter(c => catScope(c) !== 'lavoro')]];
+}
+function fCatSummary() {
+  const n = S.ui.fCats.length;
+  return n === 0 ? 'Tutte' : n === 1 ? (cat(S.ui.fCats[0])?.name || '1 categoria') : `${n} categorie`;
+}
+function fCatPicker() {
+  const groups = fCatChoices();
+  if (!groups.length) return `<div class="field"><label>Categoria</label><div class="input muted" style="display:flex;align-items:center">—</div></div>`;
+  return `<div class="field"><label id="f-cat-l">Categoria</label><details class="msel" id="f-cat"><summary class="input" aria-labelledby="f-cat-l"><span id="f-cat-sum">${esc(fCatSummary())}</span></summary>
+    <div class="msel-pop">${groups.map(([g, cs]) => `<div class="msel-g">${groups.length > 1 ? `<small class="muted">${esc(g)}</small>` : ''}${cs.map(c => `<label class="check"><input type="checkbox" data-fcat="${esc(c.id)}" ${S.ui.fCats.includes(c.id) ? 'checked' : ''}><i class="dot" style="background:${esc(c.color)}"></i> ${esc(c.name)}</label>`).join('')}</div>`).join('')}
+      <div class="msel-act"><button type="button" class="btn small ghost" data-act="fcat-clear">Tutte</button><button type="button" class="btn small" data-act="fcat-done">Fatto</button></div></div></details></div>`;
+}
 VIEWS.movimenti = () => {
   const accOpts = activeAccounts().map(a => `<option value="${esc(a.id)}" ${S.ui.fAcc === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
-  const catOpts = ['spesa', 'entrata'].map(k => `<optgroup label="${k === 'spesa' ? 'Spese' : 'Entrate'}">${catsOf(k).map(c => `<option value="${esc(c.id)}" ${S.ui.fCat === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
+  const types = [...TX_TYPES, ...(S.transactions.some(t => t.kind === 'accantonamento') ? [['accantonamento', 'Accantonamenti']] : [])];
   return `
   <div class="head with-nav"><div><div class="eyebrow">Movimenti</div><h1>${ymLabel(S.ui.month)}</h1></div>
     <div class="head-actions">${eyeBtn()}${monthNav('month')}<button class="btn primary hide-m" data-act="new-tx">+ Movimento</button></div></div>
   <section class="panel">
     <div class="filters">
       <div class="field"><label for="f-q">Cerca</label><input class="input" id="f-q" type="search" placeholder="Descrizione, categoria, importo…" value="${esc(S.ui.q)}"></div>
+      <div class="field"><label for="f-kind">Tipo</label><select class="input" id="f-kind">${types.map(([v, l]) => `<option value="${v}" ${S.ui.fKind === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div id="f-cat-wrap">${fCatPicker()}</div>
       <div class="field"><label for="f-acc">Conto</label><select class="input" id="f-acc"><option value="">Tutti</option>${accOpts}</select></div>
-      <div class="field"><label for="f-cat">Categoria</label><select class="input" id="f-cat"><option value="">Tutte</option>${catOpts}</select></div>
-      <div class="field"><label for="f-kind">Tipo</label><select class="input" id="f-kind"><option value="">Tutti</option><option value="spesa" ${S.ui.fKind === 'spesa' ? 'selected' : ''}>Spese</option><option value="entrata" ${S.ui.fKind === 'entrata' ? 'selected' : ''}>Entrate</option><option value="giroconto" ${S.ui.fKind === 'giroconto' ? 'selected' : ''}>Giroconti</option>${S.transactions.some(t => t.kind === 'accantonamento') ? `<option value="accantonamento" ${S.ui.fKind === 'accantonamento' ? 'selected' : ''}>Accantonamenti</option>` : ''}</select></div>
     </div>
     <label class="check" style="margin-top:10px"><input type="checkbox" id="f-all" ${S.ui.allMonths ? 'checked' : ''}> Cerca in tutti i mesi</label>
   </section>
-  <section class="panel privacy" id="txlist">${txListFiltered()}</section>`;
+  <section class="panel privacy" id="txlist">${txListFiltered()}</section>
+  <div class="bulk-bar" id="bulk-bar" hidden></div>`;
 };
-function txListFiltered() {
-  const q = S.ui.q.trim().toLowerCase();
-  let l = S.transactions.filter(t => inScope(t) && (S.ui.allMonths || ymOf(t.date) === S.ui.month)
+const txKindOk = t => {
+  const k = S.ui.fKind;
+  if (!k) return true;
+  if (k === 'lavoro' || k === 'personale') return (t.kind === 'spesa' || t.kind === 'accantonamento') && txScope(t) === k;
+  return t.kind === k;
+};
+function txFilteredList() {
+  const q = S.ui.q.trim().toLowerCase(), cs = S.ui.fCats;
+  let l = S.transactions.filter(t => (S.ui.allMonths || ymOf(t.date) === S.ui.month)
     && (!S.ui.fAcc || t.accountId === S.ui.fAcc || t.toAccountId === S.ui.fAcc)
-    && (!S.ui.fCat || t.categoryId === S.ui.fCat)
-    && (!S.ui.fKind || t.kind === S.ui.fKind));
+    && (!cs.length || cs.includes(t.categoryId))
+    && txKindOk(t));
   if (q) l = l.filter(t => [t.note, cat(t.categoryId)?.name, acc(t.accountId)?.name, t.clientId ? byId('clients', t.clientId)?.name : '', String(t.amount).replace('.', ',')].join(' ').toLowerCase().includes(q));
-  l = sortTx(l);
-  const inc = l.filter(t => t.kind === 'entrata').reduce((s, t) => s + +t.amount, 0), exp = l.filter(isOut).reduce((s, t) => s + +t.amount, 0);
-  return `<div class="panel-h"><h2>${l.length} moviment${l.length === 1 ? 'o' : 'i'}</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill pos num">+${money(inc)}</span><span class="pill num">−${money(exp)}</span></div></div>${txList(l.slice(0, 400))}${l.length > 400 ? `<p class="muted">Mostrati i primi 400. Restringi i filtri per vedere gli altri.</p>` : ''}`;
+  return sortTx(l);
 }
-
+function txListFiltered() {
+  const l = txFilteredList(), shown = l.slice(0, 400);
+  // la selezione resta solo sui movimenti visibili
+  const vis = new Set(shown.map(t => t.id)); [...txSel].forEach(id => { if (!vis.has(id)) txSel.delete(id); });
+  setTimeout(bulkBar, 0);
+  const inc = l.filter(t => t.kind === 'entrata').reduce((s, t) => s + +t.amount, 0), exp = l.filter(isOut).reduce((s, t) => s + +t.amount, 0);
+  const all = shown.length && shown.every(t => txSel.has(t.id));
+  return `<div class="panel-h"><h2>${l.length} moviment${l.length === 1 ? 'o' : 'i'}</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill pos num">+${money(inc)}</span><span class="pill num">−${money(exp)}</span></div></div>
+    ${shown.length ? `<label class="check tx-all"><input type="checkbox" id="tx-all" ${all ? 'checked' : ''}> Seleziona tutti</label>` : ''}
+    ${txList(shown, { select: true })}${l.length > 400 ? `<p class="muted">Mostrati i primi 400. Restringi i filtri per vedere gli altri.</p>` : ''}`;
+}
+function bulkBar() {
+  const bar = $('#bulk-bar'); if (!bar) return;
+  const n = txSel.size;
+  bar.hidden = !n; document.body.classList.toggle('bulk-on', !!n);
+  bar.innerHTML = n ? `<span><b class="num">${n}</b> selezionat${n === 1 ? 'o' : 'i'}</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn small primary" data-act="bulk-edit">Modifica</button><button type="button" class="btn small" data-act="bulk-del">Elimina</button><button type="button" class="btn small ghost" data-act="bulk-clear">Annulla</button></div>` : '';
+  const allBox = $('#tx-all'); if (allBox) { const boxes = $$('[data-txsel]'); allBox.checked = boxes.length > 0 && boxes.every(b => b.checked); allBox.indeterminate = n > 0 && !allBox.checked; }
+}
+// Modifica di più movimenti insieme: i campi lasciati su "non cambiare" restano come sono
+function bulkEditForm() {
+  const list = [...txSel].map(id => byId('transactions', id)).filter(Boolean);
+  if (!list.length) return;
+  const kinds = new Set(list.map(t => t.kind)), oneKind = kinds.size === 1 ? [...kinds][0] : '';
+  const catKind = oneKind === 'spesa' || oneKind === 'entrata' ? oneKind : '';
+  const keep = { v: '', l: '— non cambiare —' };
+  const catOpts = catKind === 'spesa'
+    ? [keep, { group: 'Spese di lavoro', items: catsOf('spesa').filter(c => catScope(c) === 'lavoro').map(c => ({ v: c.id, l: c.name })) }, { group: 'Spese personali', items: catsOf('spesa').filter(c => catScope(c) !== 'lavoro').map(c => ({ v: c.id, l: c.name })) }]
+    : catKind === 'entrata' ? [keep, ...catsOf('entrata').map(c => ({ v: c.id, l: c.name }))] : [];
+  const canClient = catKind === 'entrata';
+  openForm({
+    title: `Modifica ${list.length} moviment${list.length === 1 ? 'o' : 'i'}`,
+    intro: `<p class="muted" style="margin:0;font-size:.88rem">Cambia solo i campi che scegli: gli altri restano come sono.${catKind ? '' : ' La categoria si può cambiare quando i movimenti selezionati sono tutti spese o tutte entrate.'}</p>`,
+    fields: [
+      { id: 'date', label: 'Data', type: 'date', value: '', hint: 'Lascia vuoto per non cambiarla.' },
+      ...(catKind ? [{ id: 'categoryId', label: 'Categoria', type: 'select', value: '', options: catOpts }] : []),
+      ...(catKind === 'spesa' ? [{ id: 'scope', label: 'Lavoro o personale', type: 'select', value: '', options: [{ v: '', l: '— come la categoria scelta / non cambiare —' }, { v: 'lavoro', l: 'Spesa di lavoro' }, { v: 'personale', l: 'Spesa personale' }] }] : []),
+      { id: 'accountId', label: 'Conto', type: 'select', value: '', options: [keep, ...activeAccounts().map(a => ({ v: a.id, l: a.name }))] },
+      ...(canClient ? [{ id: 'clientId', label: 'Cliente', type: 'select', value: '', options: [keep, { v: '-', l: '— nessun cliente —' }, ...clientChoices('').map(o => o)] }] : []),
+      { id: 'note', label: 'Descrizione', value: '', placeholder: 'Lascia vuoto per non cambiarla' }
+    ],
+    submitLabel: 'Applica',
+    async onSubmit(v) {
+      let n = 0;
+      for (const t of list) {
+        const d = { ...strip(t) };
+        if (v.date) d.date = v.date;
+        if (v.accountId) { if (d.toAccountId === v.accountId) continue; d.accountId = v.accountId; }
+        if (v.note && v.note.trim()) d.note = v.note.trim();
+        if (catKind && v.categoryId) { d.categoryId = v.categoryId; if (catKind === 'spesa') d.scope = v.scope || catScope(cat(v.categoryId)); }
+        else if (catKind === 'spesa' && v.scope) d.scope = v.scope;
+        if (canClient && v.clientId) {
+          if (v.clientId === '-') { delete d.clientId; delete d.packageId; delete d.visitId; }
+          else if (v.clientId !== d.clientId) { d.clientId = v.clientId; delete d.packageId; delete d.visitId; }
+        }
+        if (JSON.stringify(d) !== JSON.stringify(strip(t))) { await put('transactions', t.id, d); n++; }
+      }
+      txSel.clear();
+      toast(n ? `${n} moviment${n === 1 ? 'o aggiornato' : 'i aggiornati'}` : 'Nessuna modifica');
+      return true;
+    }
+  });
+}
 /* ---------- clienti e pacchetti ---------- */
 // PT: 0 = pacchetto a lezioni (N lezioni, nessuna scadenza, finisce quando sono fatte)
 const PKG_MONTHS = { pt: [0, 3, 6, 12], coaching: [3, 6, 12] };
@@ -3013,6 +3116,7 @@ async function deleteDemo(btn) {
 
 /* ---------- eventi ---------- */
 document.addEventListener('click', e => {
+  const ms = $('#f-cat'); if (ms && ms.open && !e.target.closest('#f-cat')) ms.open = false;
   const t = e.target.closest('[data-act]'); if (!t) return;
   const a = t.dataset.act, id = t.dataset.id;
   if (a === 'close') { if (e.target.closest('#modal')) closeModal(); return; }
@@ -3020,6 +3124,16 @@ document.addEventListener('click', e => {
   if (a === 'fx-refresh') return fxRefresh(true);
   if (a === 'fx-edit') return rateForm(t.dataset.cur);
   if (a === 'fx-add') return openForm({ title: 'Aggiungi una valuta', fields: [{ id: 'cur', label: 'Valuta', type: 'select', options: curOptions().filter(o => o.v !== BASE) }], async onSubmit(v) { setTimeout(() => rateForm(v.cur), 0); return true; } });
+  if (a === 'fcat-clear') { S.ui.fCats = []; $$('[data-fcat]').forEach(b => b.checked = false); const sm = $('#f-cat-sum'); if (sm) sm.textContent = fCatSummary(); $('#txlist').innerHTML = txListFiltered(); return; }
+  if (a === 'fcat-done') { const d = t.closest('details'); if (d) d.open = false; return; }
+  if (a === 'bulk-clear') { txSel.clear(); $$('[data-txsel]').forEach(b => { b.checked = false; b.closest('.tx-selrow')?.classList.remove('sel'); }); bulkBar(); return; }
+  if (a === 'bulk-edit') return bulkEditForm();
+  if (a === 'bulk-del') {
+    if (!t.classList.contains('armed')) { t.classList.add('armed'); t.textContent = `Conferma: elimina ${txSel.size}`; return; }
+    const ids = [...txSel]; txSel.clear();
+    Promise.all(ids.map(x => del('transactions', x))).then(() => toast(`${ids.length} moviment${ids.length === 1 ? 'o eliminato' : 'i eliminati'}`));
+    return;
+  }
   if (a === 'scope') { S.ui.scope = t.dataset.v; try { localStorage.setItem('luludex.scope', S.ui.scope); } catch (e) {} render(); return; }
   if (a === 'new-client') return clientForm();
   if (a === 'edit-client') return clientForm(byId('clients', id));
@@ -3144,8 +3258,25 @@ document.addEventListener('change', async e => {
   const el = e.target;
   if (el.dataset && el.dataset.pick) { S.ui[el.dataset.pick] = el.value; render(); return; }
   if (el.id === 'f-acc') { S.ui.fAcc = el.value; $('#txlist').innerHTML = txListFiltered(); }
-  else if (el.id === 'f-cat') { S.ui.fCat = el.value; $('#txlist').innerHTML = txListFiltered(); }
-  else if (el.id === 'f-kind') { S.ui.fKind = el.value; $('#txlist').innerHTML = txListFiltered(); }
+  else if (el.dataset.fcat) {
+    const id = el.dataset.fcat; S.ui.fCats = el.checked ? [...new Set([...S.ui.fCats, id])] : S.ui.fCats.filter(x => x !== id);
+    const sm = $('#f-cat-sum'); if (sm) sm.textContent = fCatSummary();
+    $('#txlist').innerHTML = txListFiltered();
+  }
+  else if (el.dataset.txsel) {
+    el.checked ? txSel.add(el.dataset.txsel) : txSel.delete(el.dataset.txsel);
+    el.closest('.tx-selrow')?.classList.toggle('sel', el.checked); bulkBar();
+  }
+  else if (el.id === 'tx-all') {
+    $$('[data-txsel]').forEach(b => { b.checked = el.checked; el.checked ? txSel.add(b.dataset.txsel) : txSel.delete(b.dataset.txsel); b.closest('.tx-selrow')?.classList.toggle('sel', el.checked); });
+    bulkBar();
+  }
+  else if (el.id === 'f-kind') {
+    S.ui.fKind = el.value;
+    const ok = new Set(fCatChoices().flatMap(([, cs]) => cs.map(c => c.id))); S.ui.fCats = S.ui.fCats.filter(id => ok.has(id));
+    const w = $('#f-cat-wrap'); if (w) w.innerHTML = fCatPicker();
+    $('#txlist').innerHTML = txListFiltered();
+  }
   else if (el.id === 'f-all') { S.ui.allMonths = el.checked; $('#txlist').innerHTML = txListFiltered(); }
   else if (el.dataset.budgetYear) {
     const v = el.value.trim() === '' ? 0 : parseNum(el.value);
