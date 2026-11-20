@@ -257,6 +257,8 @@ details.sec .sec-body{display:flex;flex-direction:column;gap:8px;padding-bottom:
 .catrow .bar{grid-column:1/-1}
 .catname{display:flex;align-items:center;gap:8px;min-width:0}
 .catname span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pie-grid .catname span{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}.pie-grid .catrow>.num{white-space:nowrap}
+@media (min-width:761px) and (max-width:1100px){.pie-grid .catrow{grid-template-columns:minmax(0,1fr)}.pie-grid .catrow>.num{text-align:left}}
 
 .tbl-wrap{overflow-x:auto;margin:0 -4px}
 table{width:100%;border-collapse:collapse;font-size:.9rem}
@@ -537,7 +539,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '30'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '31'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1125,7 +1127,7 @@ const sortTx = l => [...l].sort((a, b) => b.date.localeCompare(a.date) || (b.cre
 
 /* ---------- viste ---------- */
 const VIEWS = {};
-const SCOPED_VIEWS = ['mensile', 'movimenti', 'budget'];
+const SCOPED_VIEWS = ['movimenti', 'budget'];
 const scopeBar = () => `<div class="scope-bar"><div class="seg" role="group" aria-label="Mostra">${[['tutto', 'Tutto'], ['lavoro', 'Lavoro'], ['personale', 'Personale']].map(([v, l]) => `<button type="button" data-act="scope" data-v="${v}" aria-pressed="${(S.ui.scope || 'tutto') === v}">${l}</button>`).join('')}</div></div>`;
 // Riepilogo in evidenza (stile "card" morbida): patrimonio netto, entrate, uscite, risparmio
 // Riquadro di riepilogo, uguale in tutte le sezioni: un numero grande e 3-4 caselle sotto
@@ -1188,21 +1190,25 @@ function monthBudgetCard(ym, st) {
     <div class="bar ${ratio > 1 ? 'over' : ratio >= .9 ? 'near' : ''}" style="height:8px"><i style="width:${Math.min(100, ratio * 100).toFixed(1)}%"></i></div>
   </section>`;
 }
+// Mensile: sempre su tutto (lavoro + personale), senza il selettore Tutto / Lavoro / Personale
 VIEWS.mensile = () => {
-  const ym = S.ui.month, st = monthStats(ym);
-  const recent = sortTx(S.transactions.filter(inScope)).slice(0, 7);
+  const keep = S.ui.scope; S.ui.scope = 'tutto';
+  try { return mensileHTML(); } finally { S.ui.scope = keep; }
+};
+function mensileHTML() {
+  const ym = S.ui.month, st = monthStats(ym), sp = yearSplit(ym), ml = ymLabel(ym).toLowerCase();
+  const box = (title, data, empty) => `<section class="panel"><div class="panel-h"><h2>${title}</h2></div>${catBars(data, empty)}</section>`;
   return `
   <div class="head with-nav"><div><div class="eyebrow"><span class="lbl-long">Situazione mensile</span><span class="lbl-short">Mensile</span></div><h1>${ymLabel(ym)}</h1></div>
     <div class="head-actions">${eyeBtn()}${monthNav('month')}<button class="btn primary hide-m" data-act="new-tx">+ Movimento</button></div></div>
   ${heroCard('Risparmio del mese', money0(st.net), [['Entrate', 'in', money0(st.inc), 'pos'], ['Uscite', 'out', money0(st.exp), 'neg']], '', st.net < 0 ? 'neg' : '')}
   ${monthBudgetCard(ym, st)}
-  <div class="grid g-2">
-    <section class="panel"><div class="panel-h"><h2>Spese per categoria</h2></div>
-      ${catBars(st.byCat, `Nessuna spesa registrata in ${ymLabel(ym).toLowerCase()}.`)}
-    </section>
-    <section class="panel"><div class="panel-h"><h2>Ultimi movimenti</h2><a class="btn small ghost" href="#movimenti">Tutti →</a></div>${txList(recent, { group: false })}</section>
+  <div class="pie-grid">
+    ${box('Entrate per categoria', sp.inc, `Nessuna entrata in ${ml}.`)}
+    ${box('Spese di lavoro', sp.work, `Nessuna spesa di lavoro in ${ml}.`)}
+    ${box('Spese personali', sp.pers, `Nessuna spesa personale in ${ml}.`)}
   </div>`;
-};
+}
 function yearByCat(year) {
   const o = {};
   for (const t of S.transactions) if (isOut(t) && inScope(t) && String(t.date).startsWith(year)) o[t.categoryId] = (o[t.categoryId] || 0) + (+t.amount || 0);
@@ -1213,7 +1219,7 @@ VIEWS.panoramica = () => {
   const keep = S.ui.scope; S.ui.scope = 'tutto';
   try { return panoramicaHTML(); } finally { S.ui.scope = keep; }
 };
-function yearSplit(year) {
+function yearSplit(year) { // anche per un mese: 'AAAA-MM'
   const o = { inc: {}, work: {}, pers: {} };
   for (const t of S.transactions) {
     if (!String(t.date).startsWith(year)) continue;
