@@ -535,7 +535,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '26'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '27'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1144,9 +1144,32 @@ function catBars(byCat, emptyMsg) {
     return `<div class="catrow"><div class="catname"><i class="dot" style="background:${esc(c?.color || '#999')}"></i><span>${esc(c?.name || 'Senza categoria')}</span></div><div class="num">${money(v)} <span class="muted">· ${pct(v / tot)}</span></div><div class="bar"><i style="width:${w.toFixed(1)}%;background:${esc(c?.color || 'var(--accent)')}"></i></div></div>`; }).join('');
 }
 // Budget del mese: speso, rimanente, quanto puoi spendere al giorno
+// Riquadro compatto "Entrate previste" per Mensile (mese) e Panoramica (anno)
+function incomeForecastSums(prefix) {
+  const got = incomeIn(prefix), cats = catsOf('entrata');
+  const months = prefix.length === 7 ? [prefix] : Array.from({ length: 12 }, (_, i) => prefix + '-' + pad(i + 1));
+  const today = todayISO(), curYm = ymOf(today);
+  let F = 0, Ftd = 0;
+  for (const ym of months) { const v = cats.reduce((a, c) => a + monthBudget(c.id, ym), 0); F += v; if (ym <= curYm) Ftd += v; }
+  return { F, Ftd, G: cats.reduce((a, c) => a + (got[c.id] || 0), 0) };
+}
+function incomeForecastBlock(prefix) {
+  const { F, Ftd, G } = incomeForecastSums(prefix), year = prefix.length === 4;
+  if (!F) return '';
+  const ref = year ? Ftd : F, ratio = ref ? G / ref : 0, d = G - ref;
+  return `<h3 class="sub-h">Entrate previste</h3>
+    <div class="bcard-cols">
+      <div><span class="lbl">${year ? 'Previste nell\'anno' : 'Previste'}</span><span class="v num">${money0(F)}</span></div>
+      <div><span class="lbl">Incassate</span><span class="v num pos">${money0(G)}</span></div>
+      <div><span class="lbl">${d < 0 ? (year ? 'Sotto la previsione' : 'Mancano') : 'Oltre la previsione'}</span><span class="v num ${d < 0 ? 'neg' : 'pos'}">${money0(Math.abs(d))}</span></div>
+    </div>
+    <div class="bcard-foot"><span class="muted">${pct(ratio)}</span><span class="muted">${year ? (Ftd && Ftd !== F ? `Previste fino a oggi ${money0(Ftd)}` : '') : ''}</span></div>
+    <div class="bar ${ratio >= 1 ? 'done' : ''}" style="height:8px"><i style="width:${Math.min(100, ratio * 100).toFixed(1)}%"></i></div>`;
+}
 function monthBudgetCard(ym, st) {
   const ids = S.categories.filter(c => c.kind === 'spesa' && catInScope(c) && monthBudget(c.id, ym) > 0).map(c => c.id);
-  if (!ids.length) return '';
+  const inc = incomeForecastBlock(ym);
+  if (!ids.length) return inc ? `<section class="panel bcard privacy"><div class="panel-h"><h2>Budget del mese</h2><a class="bcard-tot num" href="#budget">›</a></div>${inc}</section>` : '';
   const B = ids.reduce((x, id) => x + monthBudget(id, ym), 0), spent = ids.reduce((x, id) => x + (st.byCat[id] || 0), 0), left = B - spent;
   const today = todayISO(), cur = ymOf(today) === ym, future = ym > ymOf(today);
   const dim = new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate(), daysLeft = cur ? dim - +today.slice(8, 10) + 1 : future ? dim : 0;
@@ -1159,6 +1182,7 @@ function monthBudgetCard(ym, st) {
     </div>
     <div class="bcard-foot"><span class="muted">${pct(ratio)}</span><span class="muted">${cur ? (daysLeft === 1 ? 'Manca 1 giorno' : `Mancano ${daysLeft} giorni`) : future ? 'Mese non iniziato' : 'Mese concluso'}</span></div>
     <div class="bar ${ratio > 1 ? 'over' : ratio >= .9 ? 'near' : ''}" style="height:8px"><i style="width:${Math.min(100, ratio * 100).toFixed(1)}%"></i></div>
+    ${inc}
   </section>`;
 }
 VIEWS.mensile = () => {
@@ -1265,7 +1289,8 @@ function yearBudgetPanel(year) {
   const y = yearBudget(year);
   const head = `<div class="panel-h"><h2>Budget ${year}</h2></div>`;
   const pie = '';
-  if (!y.bIds.length) return `<section class="panel">${head}<div class="empty"><p>Imposta un budget mensile per categoria per vedere come stai andando nell'anno.</p><a class="btn" href="#budget">Imposta il budget</a></div>${pie}</section>`;
+  const inc = incomeForecastBlock(String(year));
+  if (!y.bIds.length) return `<section class="panel ${inc ? 'bcard privacy' : ''}">${head}${inc || `<div class="empty"><p>Imposta un budget mensile per categoria per vedere come stai andando nell'anno.</p><a class="btn" href="#budget">Imposta il budget</a></div>`}</section>`;
   if (!y.elapsed) return `<section class="panel">${head}<p class="muted" style="margin:0">Il ${year} non è ancora iniziato. Budget previsto per l'anno: <b class="num">${money0(y.yearB)}</b>.</p></section>`;
   const diff = y.ytdB - y.spent;
   const over = y.bIds.map(id => ({ c: cat(id), d: (y.byCat[id] || 0) - y.ytdCat[id] })).filter(x => x.c && x.d >= 1).sort((a, b) => b.d - a.d).slice(0, 5);
@@ -1279,6 +1304,7 @@ function yearBudgetPanel(year) {
     </div>
     <div class="bcard-foot"><span class="muted">${pct(ratio)}</span><span class="muted">${y.isCur ? (mLeft ? (mLeft === 1 ? 'Manca 1 mese' : `Mancano ${mLeft} mesi`) : 'Ultimo mese') : 'Anno concluso'}</span></div>
     <div class="bar ${ratio > 1 ? 'over' : ratio >= .9 ? 'near' : ''}" style="height:8px"><i style="width:${Math.min(100, ratio * 100).toFixed(1)}%"></i></div>
+    ${inc}
     <h3 class="sub-h">Categorie oltre il budget</h3>
     ${over.length ? over.map(x => `<div class="list-row"><div class="l">${catBadge(x.c, 'spesa')}<span>${esc(x.c.name)}</span></div><span class="num neg">+${money0(x.d)}</span></div>`).join('') : `<p class="muted" style="margin:0">Nessuna categoria sopra il budget. Ottimo!</p>`}
     ${pie}
