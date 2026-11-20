@@ -525,7 +525,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '22'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '23'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1587,7 +1587,7 @@ VIEWS.clienti = () => {
   <div class="cl-tools">
     <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button type="button" class="btn small ghost" data-act="cl-all" data-v="open">Apri tutti</button><button type="button" class="btn small ghost" data-act="cl-all" data-v="close">Chiudi tutti</button></div>
-    <div class="seg" role="group" aria-label="Filtra clienti" style="min-width:min(100%,420px)">${[['attivi', 'In corso'], ['da-saldare', 'Da saldare'], ['tutti', 'Tutti'], ['disattivati', 'Disattivati']].map(([v, l]) => `<button type="button" data-act="cfilter" data-v="${v}" aria-pressed="${f === v}">${l}</button>`).join('')}</div>
+    <div class="seg" role="group" aria-label="Filtra clienti" style="min-width:min(100%,420px)">${[['tutti', 'Tutti'], ['attivi', 'In corso'], ['da-saldare', 'Da saldare'], ['disattivati', 'Disattivati']].map(([v, l]) => `<button type="button" data-act="cfilter" data-v="${v}" aria-pressed="${f === v}">${l}</button>`).join('')}</div>
   </div>
   ${S.clients.length ? `<div class="cl-list" id="cl-list">${clientCards()}</div>` : `<section class="panel"><div class="empty"><p>Qui tieni traccia dei clienti: pacchetti PT e Coaching, lezioni fatte, visite nutrizionali e pagamenti.</p><button class="btn primary" data-act="new-client">Aggiungi il primo cliente</button></div></section>`}`;
 };
