@@ -585,7 +585,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '42'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '43'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2577,8 +2577,8 @@ function txForm(t, preset) {
       { id: 'categoryId', label: 'Categoria', type: 'select', value: t.categoryId || '', options: [{ v: '', l: '—' }] },
       [{ id: 'clientId', label: 'Cliente', type: 'select', value: t.clientId || '', options: clientChoices(t.clientId, '— nessun cliente —') },
        { id: 'link', label: 'Riferito a', type: 'select', value: t.packageId ? 'p:' + t.packageId : t.visitId ? 'v:' + t.visitId : '', options: [{ v: '', l: '—' }] }],
-      { id: 'byOther', label: 'Pagata da un\'altra persona: la registro per tenerne traccia, ma non conta nelle mie spese né nei miei conti', type: 'checkbox', value: !!t.paidBy },
-      { id: 'paidBy', label: 'Chi ha pagato', value: t.paidBy || '', placeholder: 'Es. Marco, i miei genitori, l\'inquilino' }
+      ...(t.paidBy ? [{ id: 'byOther', label: 'Pagata da un\'altra persona', type: 'checkbox', value: true },
+      { id: 'paidBy', label: 'Chi ha pagato', value: t.paidBy }] : [])
     ],
     onChange(v, form, ev) {
       const g = v.kind === 'giroconto';
