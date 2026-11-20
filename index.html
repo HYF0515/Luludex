@@ -552,7 +552,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '34'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '35'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -633,7 +633,10 @@ const byId = (col, id) => S[col].find(x => x.id === id);
 const cat = id => byId('categories', id);
 const acc = id => byId('accounts', id);
 const activeAccounts = () => S.accounts.filter(a => !a.archived).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
-const catsOf = kind => S.categories.filter(c => c.kind === kind).sort((a, b) => a.name.localeCompare(b.name, 'it'));
+// "Altro" (e "Altre …") sempre in fondo a ogni elenco di categorie
+const isOtherCat = c => /^altr[oie]\b/i.test(String(c?.name || '').trim());
+const otherLast = (a, b) => isOtherCat(a) - isOtherCat(b);
+const catsOf = kind => S.categories.filter(c => c.kind === kind).sort((a, b) => otherLast(a, b) || a.name.localeCompare(b.name, 'it'));
 // Ambito: ogni movimento è di Lavoro o Personale (proposto dalla categoria, modificabile).
 const SCOPES = { lavoro: 'Lavoro', personale: 'Personale' };
 const catScope = c => c?.scope === 'lavoro' ? 'lavoro' : 'personale';
@@ -1156,7 +1159,7 @@ function heroSummary(nw, inc, out, net) {
 }
 // Elenco a barre delle spese per categoria (usato in Mensile e Panoramica)
 function catBars(byCat, emptyMsg) {
-  const tot = sumObj(byCat), rows = Object.entries(byCat).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const tot = sumObj(byCat), rows = Object.entries(byCat).filter(([, v]) => v > 0).sort((a, b) => otherLast(cat(a[0]), cat(b[0])) || b[1] - a[1]);
   if (!rows.length) return `<div class="empty"><p>${emptyMsg}</p></div>`;
   return rows.map(([cid, v]) => { const c = cat(cid), w = tot ? v / tot * 100 : 0;
     return `<div class="catrow"><div class="catname"><i class="dot" style="background:${esc(c?.color || '#999')}"></i><span>${esc(c?.name || 'Senza categoria')}</span></div><div class="num">${money(v)} <span class="muted">· ${pct(v / tot)}</span></div><div class="bar"><i style="width:${w.toFixed(1)}%;background:${esc(c?.color || 'var(--accent)')}"></i></div></div>`; }).join('');
@@ -1295,7 +1298,7 @@ function yearBudget(year) {
 // Torta (ciambella) della ripartizione delle spese per categoria
 function catDonut(byCat, o = {}) {
   const tot = sumObj(byCat);
-  let rows = Object.entries(byCat).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([id, v]) => ({ c: cat(id), v }));
+  let rows = Object.entries(byCat).filter(([, v]) => v > 0).sort((a, b) => otherLast(cat(a[0]), cat(b[0])) || b[1] - a[1]).map(([id, v]) => ({ c: cat(id), v }));
   if (!rows.length || !(tot > 0)) return '';
   if (!o.all && rows.length > 7) { const rest = rows.slice(6).reduce((x, r) => x + r.v, 0); rows = [...rows.slice(0, 6), { c: { name: 'Altre categorie', color: '#DCD8C7' }, v: rest }]; }
   const R = 80, C = 2 * Math.PI * R, gap = rows.length > 1 ? 1.6 : 0;
@@ -1316,10 +1319,10 @@ function yearBudgetPanel(year) {
   if (!y.bIds.length) return `<section class="panel ${inc ? 'bcard privacy' : ''}">${head}${inc || `<div class="empty"><p>Imposta un budget mensile per categoria per vedere come stai andando nell'anno.</p><a class="btn" href="#budget">Imposta il budget</a></div>`}</section>`;
   if (!y.elapsed) return `<section class="panel">${head}<p class="muted" style="margin:0">Il ${year} non è ancora iniziato. Budget previsto per l'anno: <b class="num">${money0(y.yearB)}</b>.</p></section>`;
   const diff = y.ytdB - y.spent;
-  const over = y.bIds.map(id => ({ c: cat(id), d: (y.byCat[id] || 0) - y.ytdCat[id] })).filter(x => x.c && x.d >= 1).sort((a, b) => b.d - a.d);
+  const over = y.bIds.map(id => ({ c: cat(id), d: (y.byCat[id] || 0) - y.ytdCat[id] })).filter(x => x.c && x.d >= 1).sort((a, b) => otherLast(a.c, b.c) || b.d - a.d);
   // entrate oltre la previsione fino a oggi (stessi mesi del budget a oggi)
   const incGot = incomeIn(String(year)), curYm = ymOf(todayISO());
-  const incOver = catsOf('entrata').map(c => { let f = 0; for (let m = 1; m <= 12; m++) { const ym = year + '-' + pad(m); if (ym <= curYm) f += monthBudget(c.id, ym); } return { c, f, d: (incGot[c.id] || 0) - f }; }).filter(x => x.f > 0 && x.d >= 1).sort((a, b) => b.d - a.d);
+  const incOver = catsOf('entrata').map(c => { let f = 0; for (let m = 1; m <= 12; m++) { const ym = year + '-' + pad(m); if (ym <= curYm) f += monthBudget(c.id, ym); } return { c, f, d: (incGot[c.id] || 0) - f }; }).filter(x => x.f > 0 && x.d >= 1).sort((a, b) => otherLast(a.c, b.c) || b.d - a.d);
   const overCol = (title, list, kind, empty) => `<div class="over-col"><h4>${title}</h4>${list.length ? list.map(x => `<div class="list-row"><div class="l">${catBadge(x.c, kind)}<span>${esc(x.c.name)}</span></div><span class="num ${kind === 'entrata' ? 'pos' : 'neg'}">+${money0(x.d)}</span></div>`).join('') : `<p class="muted" style="margin:6px 0 0;font-size:.88rem">${empty}</p>`}</div>`;
   const ratio = y.ytdB ? y.spent / y.ytdB : 0, mLeft = 12 - y.elapsed, endV = y.isCur ? y.proj : y.spent;
   // stesso stile del riquadro "Budget del mese" della sezione Mensile
@@ -2524,7 +2527,7 @@ function txForm(t, preset) {
   openForm({
     title: isNew ? 'Nuovo movimento' : 'Modifica movimento',
     fields: [
-      { id: 'kind', type: 'seg', label: 'Tipo', value: t.kind, options: [{ v: 'spesa', l: 'Spesa' }, { v: 'entrata', l: 'Entrata' }, { v: 'giroconto', l: 'Giroconto' }, ...(t.kind === 'accantonamento' ? [{ v: 'accantonamento', l: 'Accantona' }] : [])] },
+      { id: 'kind', type: 'seg', label: 'Tipo', value: t.kind, options: [{ v: 'entrata', l: 'Entrata' }, { v: 'spesa', l: 'Spesa' }, { v: 'giroconto', l: 'Giroconto' }, ...(t.kind === 'accantonamento' ? [{ v: 'accantonamento', l: 'Accantona' }] : [])] },
       [{ id: 'amount', label: 'Importo', num: true, value: t.amount != null ? txOrig(t) : '', placeholder: '0,00', required: true }, { id: 'currency', label: 'Valuta', type: 'select', value: t.currency || accCur(t.accountId), options: curOptions() }],
       [{ id: 'date', label: 'Data', type: 'date', value: t.date, required: true }, { id: 'rate', label: 'Cambio', num: true, value: t.rate && txCur(t) !== BASE ? +(+t.rate).toFixed(6) : '', hint: '' }],
       { id: 'note', label: 'Descrizione', value: t.note || '', placeholder: 'Es. Spesa Esselunga' },
@@ -2649,7 +2652,7 @@ function unusedCategories() {
   S.transactions.forEach(t => t.categoryId && used.add(t.categoryId));
   S.recurring.forEach(r => r.categoryId && used.add(r.categoryId));
   ['c-pt', 'c-coaching', 'c-prima-visita', 'c-visita-ctrl'].forEach(id => used.add(id)); // usate da abbonamenti e visite
-  return S.categories.filter(c => !used.has(c.id)).sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name, 'it'));
+  return S.categories.filter(c => !used.has(c.id)).sort((a, b) => a.kind.localeCompare(b.kind) || otherLast(a, b) || a.name.localeCompare(b.name, 'it'));
 }
 // Copia nel mese selezionato i budget (o la spesa effettiva) di un altro mese
 function budgetCopyForm() {
