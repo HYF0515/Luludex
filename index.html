@@ -525,7 +525,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '20'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '21'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -760,11 +760,52 @@ function monthStats(ym) {
 }
 
 /* ---------- file allegati (fatture): IndexedDB nel browser ---------- */
-const FILES = (() => {
+const LOCAL_FILES = (() => {
   let dbp;
   const open = () => dbp || (dbp = new Promise((res, rej) => { try { const r = indexedDB.open('luludex-files', 1); r.onupgradeneeded = () => r.result.createObjectStore('files'); r.onsuccess = () => res(r.result); r.onerror = () => { dbp = null; rej(r.error); }; } catch (e) { dbp = null; rej(e); } }));
   const run = (mode, fn) => open().then(db => new Promise((res, rej) => { const t = db.transaction('files', mode), r = fn(t.objectStore('files')); t.oncomplete = () => res(r ? r.result : undefined); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }));
   return { put: (k, blob) => run('readwrite', st => st.put(blob, k)), get: k => run('readonly', st => st.get(k)), del: k => run('readwrite', st => st.delete(k)) };
+})();
+// File di fatture e diete. Con il database collegato (piano gratuito di Firebase, senza Storage) ogni file
+// è salvato in Firestore: users/{uid}/files/{chiave} con i dati del file e, sotto, i pezzi in base64
+// (parts/0, parts/1, …: ogni documento Firestore può pesare al massimo 1 MB).
+// La copia in IndexedDB serve per riaprirli subito; senza rete Firestore mette in coda e invia dopo.
+const FILE_PART = 900000; // caratteri base64 per pezzo, sotto il limite di 1 MB per documento
+const FILE_MAX = 5 * 1048576;
+const FILES = (() => {
+  const cloud = () => !S.local && S.fs && S.user?.id;
+  const fdoc = k => userCol('files').doc(k);
+  return {
+    async put(k, blob) {
+      let localOk = true; try { await LOCAL_FILES.put(k, blob); } catch (e) { localOk = false; }
+      if (!cloud()) { if (!localOk) throw new Error('local'); return; }
+      const b64 = await blobToB64(blob), n = Math.max(1, Math.ceil(b64.length / FILE_PART));
+      // non si attende la conferma del server: offline le scritture restano in coda e partono appena torna la rete
+      for (let i = 0; i < n; i++) fdoc(k).collection('parts').doc(String(i)).set({ d: b64.slice(i * FILE_PART, (i + 1) * FILE_PART) }).catch(e => console.warn('file part', e));
+      fdoc(k).set({ type: blob.type || 'application/octet-stream', size: blob.size, parts: n, at: Date.now() }).catch(e => console.warn('file meta', e));
+    },
+    async get(k) {
+      let b; try { b = await LOCAL_FILES.get(k); } catch (e) {}
+      if (b || !cloud()) return b;
+      const meta = await fdoc(k).get();
+      if (!meta.exists) return undefined;
+      const { type, parts } = meta.data();
+      const snaps = await Promise.all(Array.from({ length: parts }, (_, i) => fdoc(k).collection('parts').doc(String(i)).get()));
+      if (snaps.some(x => !x.exists)) return undefined; // ancora in caricamento da un altro dispositivo
+      b = b64ToBlob(snaps.map(x => x.data().d).join(''), type);
+      LOCAL_FILES.put(k, b).catch(() => {});
+      return b;
+    },
+    async del(k) {
+      await LOCAL_FILES.del(k).catch(() => {});
+      if (!cloud()) return;
+      try {
+        const meta = await fdoc(k).get(), n = meta.exists ? +meta.data().parts || 0 : 0;
+        for (let i = 0; i < Math.max(n, 1); i++) fdoc(k).collection('parts').doc(String(i)).delete().catch(() => {});
+        fdoc(k).delete().catch(() => {});
+      } catch (e) { console.warn('file del', e); }
+    }
+  };
 })();
 const blobToB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
 const b64ToBlob = (b64, type) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: type || 'application/octet-stream' }); };
@@ -1727,7 +1768,7 @@ function invoiceRow(i) {
 async function invoiceDownload(i) {
   if (!i?.fileKey) return;
   let blob; try { blob = await FILES.get(i.fileKey); } catch (e) {}
-  if (!blob) { toast('Il file di questa fattura non è su questo dispositivo. Caricalo di nuovo da “Modifica”.', true); return; }
+  if (!blob) { toast('Non riesco ad aprire il file di questa fattura: controlla la connessione, oppure caricalo di nuovo da “Modifica”.', true); return; }
   if (await saveFile(i.fileName || `fattura-${i.number}.pdf`, blob, i.mime || blob.type || 'application/pdf')) toast('Fattura scaricata');
 }
 function invoiceForm(inv, clientId) {
@@ -1754,7 +1795,7 @@ function invoiceForm(inv, clientId) {
       if (S.invoices.some(x => x.id !== inv.id && String(x.number).trim().toLowerCase() === v.number.trim().toLowerCase() && String(x.date).slice(0, 4) === v.date.slice(0, 4))) return 'Esiste già una fattura con questo numero nello stesso anno.';
       if (v.amount && !(parseNum(v.amount) >= 0)) return 'L\'importo non è un numero valido.';
       const f = $('#fld-file')?.files?.[0];
-      if (f && f.size > 15 * 1048576) return 'Il file è troppo grande (massimo 15 MB).';
+      if (f && f.size > FILE_MAX) return 'Il file è troppo grande (massimo 5 MB). Prova a esportare il PDF in qualità ridotta.';
       if (isNew && !f) return 'Scegli il file della fattura.';
     },
     async onSubmit(v) {
@@ -1784,7 +1825,7 @@ function dietRow(d) {
 async function dietDownload(d) {
   if (!d?.fileKey) return;
   let blob; try { blob = await FILES.get(d.fileKey); } catch (e) {}
-  if (!blob) { toast('Il file di questa dieta non è su questo dispositivo. Caricalo di nuovo da “Modifica”.', true); return; }
+  if (!blob) { toast('Non riesco ad aprire il file di questa dieta: controlla la connessione, oppure caricalo di nuovo da “Modifica”.', true); return; }
   if (await saveFile(d.fileName || 'dieta.pdf', blob, d.mime || blob.type || 'application/pdf')) toast('Dieta scaricata');
 }
 function dietForm(d, clientId) {
@@ -1809,7 +1850,7 @@ function dietForm(d, clientId) {
       if (!v.title.trim()) return 'Dai un titolo alla dieta.';
       if (!v.date) return 'Indica la data.';
       const f = $('#fld-file')?.files?.[0];
-      if (f && f.size > 15 * 1048576) return 'Il file è troppo grande (massimo 15 MB).';
+      if (f && f.size > FILE_MAX) return 'Il file è troppo grande (massimo 5 MB). Prova a esportare il PDF in qualità ridotta.';
       if (isNew && !f) return 'Scegli il file della dieta.';
     },
     async onSubmit(v) {
@@ -1849,7 +1890,7 @@ async function fileViewer(col, id) {
   m.hidden = false;
   const pv = $('#pv'), fail = msg => { if (pv.isConnected) pv.innerHTML = `<p class="muted">${msg} Puoi comunque scaricarlo con “Scarica”.</p>`; };
   let blob; try { blob = await FILES.get(doc.fileKey); } catch (e) {}
-  if (!blob) return fail('Il file non è su questo dispositivo.');
+  if (!blob) return fail(S.local ? 'Il file non è su questo dispositivo.' : 'Non riesco ad aprire il file: controlla la connessione.');
   const type = doc.mime || blob.type || '';
   if (viewerUrl) { URL.revokeObjectURL(viewerUrl); viewerUrl = ''; }
   if (type.startsWith('image/')) { viewerUrl = URL.createObjectURL(blob); pv.innerHTML = `<img src="${viewerUrl}" alt="${esc(title)}">`; return; }
