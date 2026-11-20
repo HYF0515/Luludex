@@ -6,7 +6,7 @@
 <title>Luludex</title>
 <meta name="theme-color" content="#F3F4F2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#111417" media="(prefers-color-scheme: dark)">
-<script>document.documentElement.dataset.palette='inter'</script>
+<script>document.documentElement.dataset.palette='inter';try{var t=localStorage.getItem('luludex.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -408,8 +408,11 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 :root[data-palette="inter"][data-theme="dark"]{
   --bg:#0B0E14; --surface:#121722; --surface-2:#1A2130; --line:#252E40; --fg:#E7EBF2; --muted:#97A2B5;
   --accent:#9DB6E3; --accent-soft:#1A2A47; --on-accent:#0B0E14;
-  --bar:#7F9DD3; --bar-ok:#4E6D9F; --bar-near:#C9A653; --bar-over:#B4685A; --chart-out:#7F9DD3;
-  --hero:#15213A;--hero-fg:#E7EBF2;--hero-tile:rgba(255,255,255,.05);--hero-muted:#9CA9C0;--hero-neu:rgba(255,255,255,.1);--tag-sav:rgba(157,182,227,.18);--tag-sav-fg:#C9D6EE}
+  --pos:#9BC0AC; --neg:#E0A193; --warn:#D4B266; --pos-soft:#18261F; --neg-soft:#33221F; --warn-soft:#2E2817;
+  --bar:#7F9DD3; --bar-ok:#4E6D9F; --bar-near:#C9A653; --bar-over:#B4685A;
+  --chart-in:#7FA392; --chart-out:#7F9DD3; --chart-over:#C98D80;
+  --hero:#15213A;--hero-fg:#E7EBF2;--hero-tile:rgba(255,255,255,.05);--hero-muted:#9CA9C0;--hero-pos:#B4D3C2;--hero-neg:#EBBBB0;--hero-neu:rgba(255,255,255,.1);
+  --tag-in:rgba(127,163,146,.2);--tag-in-fg:#B4D3C2;--tag-out:rgba(201,141,128,.2);--tag-out-fg:#EBBBB0;--tag-sav:rgba(157,182,227,.18);--tag-sav-fg:#C9D6EE; color-scheme:dark}
 /* tocco nerazzurro: sottile riga blu e nera sotto il nome dell'app */
 :root[data-palette="inter"] .brand b{background:linear-gradient(90deg,var(--accent) 0 50%,var(--fg) 50% 100%) left bottom/100% 2px no-repeat;padding-bottom:2px}
 .hero .pos,.hero .v.pos,.hero .num.pos{color:var(--hero-pos)!important} .hero .neg,.hero .v.neg,.hero .num.neg{color:var(--hero-neg)!important} .hero .tag.neu{background:var(--hero-neu);color:var(--hero-muted)}
@@ -578,7 +581,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '40'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '41'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -919,6 +922,14 @@ async function del(col, id) {
   return true;
 }
 const strip = o => { const { id, ...rest } = o; return rest; };
+// Tema: Chiaro, Scuro o Automatico (come il dispositivo); ricordato su questo dispositivo
+const curTheme = () => { try { const t = localStorage.getItem('luludex.theme'); return t === 'light' || t === 'dark' ? t : 'auto'; } catch (e) { return 'auto'; } };
+function applyTheme() {
+  const t = curTheme(), r = document.documentElement;
+  if (t === 'auto') delete r.dataset.theme; else r.dataset.theme = t;
+  const bg = getComputedStyle(r).getPropertyValue('--bg').trim();
+  $$('meta[name="theme-color"]').forEach(m => { m.content = t === 'auto' ? (m.media.includes('dark') ? '#0B0E14' : '#F1F3F7') : bg; });
+}
 // palette dei colori: sempre Nerazzurra
 function applyPalette() { if (document.documentElement.dataset.palette !== 'inter') document.documentElement.dataset.palette = 'inter'; }
 async function saveSettings(patch) { return put('settings', 'main', { ...S.settings, ...patch }); }
@@ -1067,7 +1078,7 @@ const catIconSvg = (c, size = 18) => `<svg viewBox="0 0 24 24" width="${size}" h
 let raf = 0;
 function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
 function render() {
-  applyPalette();
+  applyPalette(); applyTheme();
   const v = $('#view');
   const locked = S.status === 'setup' || S.status === 'auth';
   document.body.classList.toggle('locked', locked);
@@ -2391,6 +2402,9 @@ VIEWS.impostazioni = () => {
   const rules = S.settings.rules || [];
   return `
   <div class="head with-nav"><div><div class="eyebrow">Impostazioni</div><h1>Conti, categorie e dati</h1></div></div>
+  <section class="panel"><div class="panel-h"><h2>Tema</h2></div>
+    <div class="seg" role="group" aria-label="Tema" style="width:min(100%,420px)">${[['light', 'Chiaro'], ['dark', 'Scuro'], ['auto', 'Automatico']].map(([v, l]) => `<button type="button" data-act="theme" data-v="${v}" aria-pressed="${curTheme() === v}">${l}</button>`).join('')}</div>
+  </section>
   <div class="grid g-2">
     <section class="panel"><div class="panel-h"><h2>Conti</h2><button class="btn small" data-act="new-acc">+ Conto</button></div>
       ${S.accounts.length ? [...S.accounts].sort((a, b) => !!a.archived - !!b.archived || a.name.localeCompare(b.name)).map(a => `<div class="list-row"><div class="l"><i class="dot" style="background:${esc(accColor(a))}"></i><span>${esc(a.name)}</span>${a.archived ? '<span class="pill">Archiviato</span>' : ''}</div><button class="btn small ghost" data-act="edit-acc" data-id="${esc(a.id)}">Modifica</button></div>`).join('') : '<p class="muted">Nessun conto.</p>'}
@@ -2399,32 +2413,26 @@ VIEWS.impostazioni = () => {
       ${[['spesa', 'lavoro'], ['spesa', 'personale'], ['entrata', '']].map(([k, sc]) => `<h3 style="margin:6px 0">${k === 'spesa' ? 'Spese · ' + SCOPES[sc].toLowerCase() : 'Entrate'}</h3><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${catsOf(k).filter(c => !sc || catScope(c) === sc).map(c => `<button class="pill" style="border:0;cursor:pointer" data-act="edit-cat" data-id="${esc(c.id)}"><i class="dot" style="background:${esc(c.color)}"></i>${esc(c.name)}</button>`).join('') || '<span class="muted">Nessuna</span>'}</div>`).join('')}
     </section>
     <section class="panel"><div class="panel-h"><h2>Regole di categorizzazione</h2><button class="btn small" data-act="new-rule">+ Regola</button></div>
-      <p class="muted" style="margin:0 0 8px;font-size:.88rem">Quando importi un CSV, se la descrizione contiene la parola chiave, il movimento riceve la categoria indicata.</p>
       ${rules.length ? rules.map((r, i) => `<div class="list-row"><div class="l"><span class="mono">“${esc(r.k)}”</span><span class="muted">→</span><i class="dot" style="background:${esc(cat(r.c)?.color || '#999')}"></i><span>${esc(cat(r.c)?.name || 'Categoria eliminata')}</span></div><button class="icon-btn" data-act="del-rule" data-i="${i}" aria-label="Elimina regola">×</button></div>`).join('') : '<p class="muted">Nessuna regola.</p>'}
     </section>
     <section class="panel"><div class="panel-h"><h2>Importa ed esporta</h2></div>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
-        <p class="muted" style="margin:0;font-size:.88rem">Importa l'estratto conto della tua banca in CSV o Excel: riconosco date e importi in formato italiano e salto i movimenti già presenti.</p>
         <button class="btn primary" data-act="import">Importa CSV o Excel</button>
-        <p class="muted" style="margin:6px 0 0;font-size:.88rem">Scarica un file Excel con movimenti, conti, categorie e budget, clienti e investimenti, ognuno nel suo foglio. Oppure solo i movimenti in CSV.</p>
         <button class="btn" data-act="export-xlsx" ${typeof S.dl === 'undefined' || S.dl || !(window.claude && window.claude.use) ? '' : 'disabled title="Download non disponibile in questa vista"'}>Esporta in Excel (.xlsx)</button>
         <button class="btn" data-act="export">Esporta movimenti (CSV)</button>
       </div>
     </section>
     <section class="panel"><div class="panel-h"><h2>Valute e cambi</h2><div style="display:flex;gap:6px;flex-wrap:wrap">${FX_ONLINE ? '<button class="btn small" data-act="fx-refresh">Aggiorna cambi BCE</button>' : ''}<button class="btn small" data-act="fx-add">+ Valuta</button></div></div>
-      <p class="muted" style="margin:0 0 8px;font-size:.88rem">Tutti i totali sono in euro. I movimenti in un'altra valuta tengono importo e cambio originali; i saldi dei conti in valuta sono convertiti con il cambio più recente.</p>
-      ${(() => { const curs = [...new Set([...S.accounts.map(a => a.currency), ...S.transactions.map(t => t.currency), ...Object.keys(S.settings.rates || {}), ...Object.keys(S.fx || {})].filter(c => c && c !== BASE))].sort(); return curs.length ? curs.map(c => { const r = rateOf(c), src = [S.settings.rates?.[c], S.fx[c]].filter(Boolean).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]; return `<div class="list-row"><div class="l"><b class="mono">${esc(c)}</b><span class="muted">${esc(CURRENCIES[c] || '')}</span></div><div style="display:flex;gap:8px;align-items:center"><span class="num">${r ? '1 ' + esc(c) + ' = ' + (+r).toLocaleString('it-IT', { maximumFractionDigits: 4 }) + ' €' : '<span class="pill warn">cambio mancante</span>'}</span>${src?.date ? `<span class="muted" style="font-size:.78rem">${dShort(src.date)}</span>` : ''}<button class="btn small ghost" data-act="fx-edit" data-cur="${esc(c)}">Modifica</button></div></div>`; }).join('') : '<p class="muted" style="margin:0">Usi solo euro. Per un conto o un movimento in un\'altra valuta, sceglila nel modulo.</p>'; })()}
+      ${(() => { const curs = [...new Set([...S.accounts.map(a => a.currency), ...S.transactions.map(t => t.currency), ...Object.keys(S.settings.rates || {}), ...Object.keys(S.fx || {})].filter(c => c && c !== BASE))].sort(); return curs.length ? curs.map(c => { const r = rateOf(c), src = [S.settings.rates?.[c], S.fx[c]].filter(Boolean).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]; return `<div class="list-row"><div class="l"><b class="mono">${esc(c)}</b><span class="muted">${esc(CURRENCIES[c] || '')}</span></div><div style="display:flex;gap:8px;align-items:center"><span class="num">${r ? '1 ' + esc(c) + ' = ' + (+r).toLocaleString('it-IT', { maximumFractionDigits: 4 }) + ' €' : '<span class="pill warn">cambio mancante</span>'}</span>${src?.date ? `<span class="muted" style="font-size:.78rem">${dShort(src.date)}</span>` : ''}<button class="btn small ghost" data-act="fx-edit" data-cur="${esc(c)}">Modifica</button></div></div>`; }).join('') : '<p class="muted" style="margin:0">Solo euro.</p>'; })()}
     </section>
     <section class="panel"><div class="panel-h"><h2>Backup completo</h2></div>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
-        <p class="muted" style="margin:0;font-size:.88rem">Un file JSON con conti, movimenti, budget, investimenti, obiettivi e impostazioni. Il ripristino aggiunge o sovrascrive i dati con lo stesso identificativo, senza cancellare gli altri.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="backup">Scarica backup</button><label class="btn" for="restore-file">Ripristina da backup</label><input type="file" id="restore-file" accept=".json,application/json" hidden></div>
       </div>
     </section>
     ${S.local ? `<section class="panel"><div class="panel-h"><h2>Archivio dati</h2></div>
       <div class="list-row"><div class="l"><span class="muted">Database</span></div><span>Nessuno · solo questo dispositivo</span></div>
       <div class="list-row"><div class="l"><span class="muted">Versione app</span></div><span class="mono">${APP_VERSION}</span></div>
-      <p class="muted" style="margin:8px 0 0;font-size:.88rem">Luludex non è ancora collegato a un database: i dati restano in questo browser e non si sincronizzano con altri dispositivi. Usa <b>Scarica backup</b> per conservarli.</p>
     </section>` : `<section class="panel"><div class="panel-h"><h2>Account e sincronizzazione</h2></div>
       <div class="list-row"><div class="l"><span class="muted">Accesso come</span></div><b style="overflow:hidden;text-overflow:ellipsis">${esc(S.user?.email || '')}</b></div>
       <div class="list-row"><div class="l"><span class="muted">Versione app</span></div><span style="display:flex;gap:8px;align-items:center"><span class="mono">${APP_VERSION}</span><button class="btn small" data-act="check-update">Cerca aggiornamenti</button></span></div>
@@ -3180,6 +3188,7 @@ document.addEventListener('click', e => {
     Promise.all(ids.map(x => del('transactions', x))).then(() => toast(`${ids.length} moviment${ids.length === 1 ? 'o eliminato' : 'i eliminati'}`));
     return;
   }
+  if (a === 'theme') { try { localStorage.setItem('luludex.theme', t.dataset.v); } catch (e) {} applyTheme(); render(); return; }
   if (a === 'scope') { S.ui.scope = t.dataset.v; try { localStorage.setItem('luludex.scope', S.ui.scope); } catch (e) {} render(); return; }
   if (a === 'new-client') return clientForm();
   if (a === 'edit-client') return clientForm(byId('clients', id));
