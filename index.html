@@ -402,19 +402,13 @@ body.locked .app{grid-template-columns:minmax(0,1fr)}
 .donut-wrap{display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px;align-items:center}
 .donut-wrap.stack{grid-template-columns:minmax(0,1fr);justify-items:center}.donut-wrap.stack .donut-leg{width:100%}
 .pie-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap,16px);align-items:start}.pie-grid>.panel{margin:0;min-width:0}
-@media (max-width:760px){
-  .pie-grid{gap:6px}
-  .pie-grid>.panel{padding:10px 8px}
-  .pie-grid .panel-h{margin-bottom:6px}.pie-grid .panel-h h2{font-size:.8rem;line-height:1.2}
-  .pie-grid .fold-btn{width:22px;height:22px}
-  .pie-grid .donut-wrap{gap:8px}.pie-grid .donut{width:100%}
-  .pie-grid .donut-c .lbl{font-size:.55rem}.pie-grid .donut-c .v{font-size:.72rem}
-  .pie-grid .donut-leg .list-row{display:block;padding:4px 0;font-size:.68rem;line-height:1.25}
-  .pie-grid .donut-leg .list-row .l{gap:4px;align-items:flex-start}.pie-grid .donut-leg .dot{margin-top:3px;flex:none}
-  .pie-grid .donut-leg .list-row>.num{display:block;text-align:left;padding-left:12px;white-space:nowrap}
-  .pie-grid .donut-leg .list-row>.num .muted{display:none}
-  .pie-grid .donut-leg .l span{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;hyphens:auto}
-  .pie-grid .donut-leg .l{min-width:0}
+/* telefono: una sotto l'altra; iPad e computer: tre sulla stessa riga */
+@media (max-width:760px){.pie-grid{grid-template-columns:minmax(0,1fr)}}
+@media (min-width:761px) and (max-width:1100px){
+  .pie-grid{gap:10px}.pie-grid>.panel{padding:14px 12px}
+  .pie-grid .panel-h h2{font-size:.95rem}.pie-grid .donut{width:min(170px,100%)}
+  .pie-grid .donut-leg .list-row{font-size:.8rem}
+  .pie-grid .donut-leg .l span{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 }
 .donut{position:relative;width:200px;max-width:100%;aspect-ratio:1}
 .donut svg{width:100%;height:100%;display:block}
@@ -541,7 +535,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '25'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '26'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
