@@ -585,7 +585,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '43'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '44'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1799,7 +1799,7 @@ function clientCards() {
       <div class="cl-body" ${open ? '' : 'hidden'}>
       ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
         return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
-      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button><button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica cliente</button>${c.inactive ? `<button class="btn small primary" data-act="client-reactivate" data-id="${esc(c.id)}">Riattiva</button>` : `<button class="btn small ghost" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}</div></article>`; }).join('');
+      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button><button class="btn small" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica cliente</button>${c.inactive ? `<button class="btn small primary" data-act="client-reactivate" data-id="${esc(c.id)}">Riattiva</button>` : `<button class="btn small" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}</div></article>`; }).join('');
 }
 VIEWS.clienti = () => {
   const today = todayISO(), ym = ymOf(today), soon = isoOf(new Date(Date.now() + 30 * 864e5));
