@@ -155,10 +155,10 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .tx-all{margin:2px 0 6px;font-size:.88rem}
 .cl-check{display:flex;align-items:center;padding:4px 10px 4px 0;cursor:pointer;flex:none}.cl-check input{width:17px;height:17px;cursor:pointer}
 .cl.sel{outline:2px solid var(--accent-soft);outline-offset:-1px}
-.cl-nm-row{display:flex;align-items:center;gap:8px;min-width:0}.cl-nm-row .cl-name{min-width:0}
+.cl-nm-row{display:flex;align-items:center;gap:4px 8px;min-width:0;flex-wrap:wrap}.cl .cl-sum>.t{flex:1 1 0}.cl-nm-row .cl-name{min-width:0}
 .ctags{display:inline-flex;gap:4px;flex:none}.ctags:empty{display:none}
 .ctag{font-size:.68rem;font-weight:600;letter-spacing:.02em;padding:2px 7px;border-radius:999px;line-height:1.4;white-space:nowrap}
-.ctag.pt{background:var(--accent-soft);color:var(--accent)}.ctag.nu{background:var(--pos-soft);color:var(--pos)}
+.ctag.pt{background:var(--accent-soft);color:var(--accent)}.ctag.nu{background:var(--pos-soft);color:var(--pos)}.ctag.co{background:var(--warn-soft);color:var(--warn)}
 
 .gcal-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px 12px;margin-bottom:14px;font-size:.9rem}
 .gcal-bar>span:nth-child(2){flex:1;min-width:0}
@@ -602,7 +602,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '53'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '54'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2070,9 +2070,10 @@ async function apptUndo(a) {
   toast(a.visitId ? 'Segno tolto. La visita resta registrata nella scheda del cliente: eliminala da lì se serve.' : a.packageId || a.packageId2 ? (a.packageId && a.packageId2 ? 'Lezione tolta dai due abbonamenti' : 'Lezione tolta dall\'abbonamento') : 'Segno tolto');
 }
 // Tipo di cliente: PT se ha pacchetti PT/Coaching o appuntamenti PT; Nutrizione se ha visite (o appuntamenti di visita)
-const clientIsPT = id => S.packages.some(p => p.clientId === id) || S.appointments.some(a => a.service === 'pt' && apptHas(a, id)) || S.transactions.some(t => t.clientId === id && (t.categoryId === 'c-pt' || t.categoryId === 'c-coaching'));
+const clientIsPT = id => S.packages.some(p => p.clientId === id && p.kind === 'pt') || S.appointments.some(a => a.service === 'pt' && apptHas(a, id)) || S.transactions.some(t => t.clientId === id && t.categoryId === 'c-pt');
+const clientIsCoach = id => S.packages.some(p => p.clientId === id && p.kind === 'coaching') || S.transactions.some(t => t.clientId === id && t.categoryId === 'c-coaching');
 const clientIsNutri = id => S.visits.some(v => v.clientId === id) || S.appointments.some(a => a.service !== 'pt' && a.clientId === id) || S.transactions.some(t => t.clientId === id && (t.categoryId === 'c-prima-visita' || t.categoryId === 'c-visita-ctrl'));
-const clientTags = id => `${clientIsPT(id) ? '<span class="ctag pt">PT</span>' : ''}${clientIsNutri(id) ? '<span class="ctag nu">Nutrizione</span>' : ''}`;
+const clientTags = id => `${clientIsPT(id) ? '<span class="ctag pt">PT</span>' : ''}${clientIsCoach(id) ? '<span class="ctag co">Coaching</span>' : ''}${clientIsNutri(id) ? '<span class="ctag nu">Nutrizione</span>' : ''}`;
 // Selezione di più clienti: disattiva, riattiva o elimina insieme
 const clSel = new Set();
 window.addEventListener('hashchange', () => { clSel.clear(); });
@@ -2101,7 +2102,7 @@ function clientCards() {
   if (f === 'da-saldare') list = list.filter(c => clientDue(c.id) > 0);
   if (f === 'tutti') list = list.filter(c => !c.inactive);
   if (f === 'disattivati') list = list.filter(c => c.inactive);
-  if (S.ui.cType === 'pt') list = list.filter(c => clientIsPT(c.id)); else if (S.ui.cType === 'nutri') list = list.filter(c => clientIsNutri(c.id));
+  if (S.ui.cType === 'pt') list = list.filter(c => clientIsPT(c.id)); else if (S.ui.cType === 'coach') list = list.filter(c => clientIsCoach(c.id)); else if (S.ui.cType === 'nutri') list = list.filter(c => clientIsNutri(c.id));
   if (q) list = list.filter(c => [c.name, c.phone, c.email, c.cf, c.address, c.notes].join(' ').toLowerCase().includes(q));
   { const vis = new Set(list.map(c => c.id)); [...clSel].forEach(id => { if (!vis.has(id)) clSel.delete(id); }); }
   if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : f === 'disattivati' ? 'Nessun cliente disattivato.' : 'Nessun cliente.'}</p></div>`;
@@ -2136,7 +2137,7 @@ VIEWS.clienti = () => {
   <div class="cl-tools">
     <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button type="button" class="btn small ghost" data-act="cl-all" data-v="open">Apri tutti</button><button type="button" class="btn small ghost" data-act="cl-all" data-v="close">Chiudi tutti</button><label class="check" style="margin-left:4px"><input type="checkbox" id="cl-sel-all"> Seleziona tutti</label></div>
-    <div class="seg" role="group" aria-label="Tipo di cliente" style="min-width:min(100%,340px)">${[['', 'Tutti i tipi'], ['pt', 'PT'], ['nutri', 'Nutrizione']].map(([v, l]) => `<button type="button" data-act="ctype" data-v="${v}" aria-pressed="${(S.ui.cType || '') === v}">${l}</button>`).join('')}</div>
+    <div class="seg" role="group" aria-label="Tipo di cliente" style="min-width:min(100%,420px)">${[['', 'Tutti i tipi'], ['pt', 'PT'], ['coach', 'Coaching'], ['nutri', 'Nutrizione']].map(([v, l]) => `<button type="button" data-act="ctype" data-v="${v}" aria-pressed="${(S.ui.cType || '') === v}">${l}</button>`).join('')}</div>
     <div class="seg" role="group" aria-label="Filtra clienti" style="min-width:min(100%,420px)">${[['tutti', 'Tutti'], ['attivi', 'In corso'], ['da-saldare', 'Da saldare'], ['disattivati', 'Disattivati']].map(([v, l]) => `<button type="button" data-act="cfilter" data-v="${v}" aria-pressed="${f === v}">${l}</button>`).join('')}</div>
   </div>
   ${S.clients.length ? `<div class="cl-list" id="cl-list">${clientCards()}</div><div class="bulk-bar" id="clbulk" hidden></div>` : `<section class="panel"><div class="empty"><p>Qui tieni traccia dei clienti: pacchetti PT e Coaching, lezioni fatte, visite nutrizionali e pagamenti.</p><button class="btn primary" data-act="new-client">Aggiungi il primo cliente</button></div></section>`}`;
