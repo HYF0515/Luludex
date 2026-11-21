@@ -588,7 +588,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '46'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '47'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1085,7 +1085,7 @@ const catIconSvg = (c, size = 18) => `<svg viewBox="0 0 24 24" width="${size}" h
 let raf = 0;
 function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
 function render() {
-  applyPalette(); applyTheme(); setTimeout(gcalMaybe, 0);
+  applyPalette(); applyTheme(); setTimeout(() => { gcalInit(); gcalMaybe(); }, 0);
   const v = $('#view');
   const locked = S.status === 'setup' || S.status === 'auth';
   document.body.classList.toggle('locked', locked);
@@ -1562,20 +1562,33 @@ const loadGis = () => gisP || (gisP = new Promise((res, rej) => {
   sc.onload = () => res(); sc.onerror = () => { gisP = null; rej(new Error('Non riesco a caricare l\'accesso Google: controlla la connessione.')); };
   document.head.appendChild(sc);
 }));
-// chiede il token a Google (deve partire da un tocco: apre una finestrella Google)
-function gcalAuth() {
-  return loadGis().then(() => new Promise((res, rej) => {
-    const tc = google.accounts.oauth2.initTokenClient({
-      client_id: gcalClientId(), scope: GCAL_SCOPE, prompt: '', hint: S.user?.email || undefined,
+// Il client Google si prepara in anticipo (all'apertura dell'app): così al tocco su Collega / Sincronizza
+// la finestrella di Google parte subito e il browser non la blocca come popup non richiesto.
+let gcalTC = null, gcalWait = null;
+function gcalInit() {
+  if (!gcalClientId() || gcalTC) return;
+  loadGis().then(() => {
+    if (gcalTC) return;
+    gcalTC = google.accounts.oauth2.initTokenClient({
+      client_id: gcalClientId(), scope: GCAL_SCOPE, prompt: '',
       callback: r => {
-        if (r.error || !r.access_token) return rej(new Error(r.error_description || r.error || 'Accesso a Google non riuscito.'));
-        if (!google.accounts.oauth2.hasGrantedAllScopes(r, GCAL_SCOPE)) return rej(new Error('Serve il permesso per il calendario: riprova e lascia la casella spuntata.'));
-        LS.set('luludex.gcalTok', { t: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000 }); res(r.access_token);
+        const w = gcalWait; gcalWait = null; if (!w) return;
+        if (r.error || !r.access_token) return w.rej(new Error(r.error_description || r.error || 'Accesso a Google non riuscito.'));
+        if (!google.accounts.oauth2.hasGrantedAllScopes(r, GCAL_SCOPE)) return w.rej(new Error('Serve il permesso per il calendario: riprova e lascia la casella spuntata.'));
+        LS.set('luludex.gcalTok', { t: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000 }); w.res(r.access_token);
       },
-      error_callback: e => rej(new Error(e?.type === 'popup_closed' ? 'Finestra di Google chiusa.' : e?.type === 'popup_failed_to_open' ? 'Il browser ha bloccato la finestra di Google: consenti i popup e riprova.' : 'Accesso a Google non riuscito.'))
+      error_callback: e => {
+        const w = gcalWait; gcalWait = null; if (!w) return;
+        w.rej(new Error(e?.type === 'popup_closed' ? 'Finestra di Google chiusa prima di finire.' : e?.type === 'popup_failed_to_open' ? 'Il browser ha bloccato la finestra di Google: consenti i popup per questo sito e riprova.' : 'Accesso a Google non riuscito (' + (e?.type || e?.message || 'errore') + ').'));
+      }
     });
-    tc.requestAccessToken();
-  }));
+    renderGcalBar();
+  }).catch(e => { GC.err = e.message; renderGcalBar(); });
+}
+// deve essere chiamata direttamente dal tocco (niente attese prima)
+function gcalAuth() {
+  if (!gcalTC) { gcalInit(); return Promise.reject(new Error('Sto preparando il collegamento a Google: riprova tra qualche secondo.')); }
+  return new Promise((res, rej) => { gcalWait = { res, rej }; gcalTC.requestAccessToken(); });
 }
 async function gapi(method, path, body) {
   const tok = gcalTok(); if (!tok) { const e = new Error('token'); e.code = 401; throw e; }
