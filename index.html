@@ -153,6 +153,8 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .msel-g{display:flex;flex-direction:column;gap:2px}.msel-g .check{padding:4px 0;display:flex;align-items:center;gap:8px}
 .msel-act{display:flex;justify-content:space-between;gap:8px;padding:8px 0 0;border-top:1px solid var(--line)}
 .tx-all{margin:2px 0 6px;font-size:.88rem}
+.cl-check{display:flex;align-items:center;padding:4px 10px 4px 0;cursor:pointer;flex:none}.cl-check input{width:17px;height:17px;cursor:pointer}
+.cl.sel{outline:2px solid var(--accent-soft);outline-offset:-1px}
 .gcal-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px 12px;margin-bottom:14px;font-size:.9rem}
 .gcal-bar>span:nth-child(2){flex:1;min-width:0}
 .sheet.wide{width:min(980px,100%);max-width:980px}
@@ -595,7 +597,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '51'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '52'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2062,7 +2064,28 @@ async function apptUndo(a) {
   await put('appointments', a.id, { ...strip(a), done: false, packageId: '', packageId2: '', countedYm: '' });
   toast(a.visitId ? 'Segno tolto. La visita resta registrata nella scheda del cliente: eliminala da lì se serve.' : a.packageId || a.packageId2 ? (a.packageId && a.packageId2 ? 'Lezione tolta dai due abbonamenti' : 'Lezione tolta dall\'abbonamento') : 'Segno tolto');
 }
+// Selezione di più clienti: disattiva, riattiva o elimina insieme
+const clSel = new Set();
+window.addEventListener('hashchange', () => { clSel.clear(); });
+function clBulkBar() {
+  const bar = $('#clbulk'); if (!bar) return;
+  const sel = [...clSel].map(id => byId('clients', id)).filter(Boolean), n = sel.length, act = sel.filter(c => !c.inactive).length, ina = n - act;
+  bar.hidden = !n; document.body.classList.toggle('bulk-on', !!n);
+  bar.innerHTML = n ? `<span><b class="num">${n}</b> client${n === 1 ? 'e selezionato' : 'i selezionati'}</span><div style="display:flex;gap:8px;flex-wrap:wrap">${act ? `<button type="button" class="btn small primary" data-act="clbulk-off">Disattiva${ina ? ' ' + act : ''}</button>` : ''}${ina ? `<button type="button" class="btn small primary" data-act="clbulk-on">Riattiva${act ? ' ' + ina : ''}</button>` : ''}<button type="button" class="btn small" data-act="clbulk-del">Elimina</button><button type="button" class="btn small ghost" data-act="clbulk-clear">Annulla</button></div>` : '';
+  const all = $('#cl-sel-all'); if (all) { const boxes = $$('[data-clsel]'); all.checked = boxes.length > 0 && boxes.every(b => b.checked); all.indeterminate = n > 0 && !all.checked; }
+}
+// elimina un cliente con pacchetti, visite, fatture, diete e appuntamenti (i pagamenti restano tra le entrate)
+async function deleteClientData(c) {
+  S.packages.filter(p => p.clientId === c.id).forEach(p => del('packages', p.id));
+  S.visits.filter(v => v.clientId === c.id).forEach(v => del('visits', v.id));
+  S.invoices.filter(i => i.clientId === c.id).forEach(i => { del('invoices', i.id); if (i.fileKey) FILES.del(i.fileKey).catch(() => {}); });
+  S.diets.filter(x => x.clientId === c.id).forEach(x => { del('diets', x.id); if (x.fileKey) FILES.del(x.fileKey).catch(() => {}); });
+  S.appointments.filter(x => x.clientId === c.id).forEach(x => del('appointments', x.id));
+  S.appointments.filter(x => x.clientId2 === c.id).forEach(x => put('appointments', x.id, { ...strip(x), clientId2: '' }));
+  return del('clients', c.id);
+}
 function clientCards() {
+  setTimeout(clBulkBar, 0);
   const f = S.ui.cFilter || 'attivi', q = (S.ui.cq || '').trim().toLowerCase();
   let list = clientsSorted();
   if (f === 'attivi') list = list.filter(c => clientActive(c.id));
@@ -2070,9 +2093,10 @@ function clientCards() {
   if (f === 'tutti') list = list.filter(c => !c.inactive);
   if (f === 'disattivati') list = list.filter(c => c.inactive);
   if (q) list = list.filter(c => [c.name, c.phone, c.email, c.cf, c.address, c.notes].join(' ').toLowerCase().includes(q));
+  { const vis = new Set(list.map(c => c.id)); [...clSel].forEach(id => { if (!vis.has(id)) clSel.delete(id); }); }
   if (!list.length) return `<div class="empty"><p>${q ? 'Nessun cliente trovato.' : f === 'attivi' ? 'Nessun cliente con un pacchetto in corso o una visita negli ultimi 3 mesi.' : f === 'da-saldare' ? 'Tutti i pacchetti sono saldati.' : f === 'disattivati' ? 'Nessun cliente disattivato.' : 'Nessun cliente.'}</p></div>`;
   return list.map(c => { const ps = clientPkgs(c.id), open = openClients.has(c.id) || (q && list.length <= 3), sm = clientSummary(c);
-    return `<article class="cl ${open ? 'open' : ''}"><div class="cl-sum" data-act="cl-toggle" data-id="${esc(c.id)}"><div class="t"><button type="button" class="cl-name" data-act="client-pays" data-id="${esc(c.id)}" title="Apri la scheda: dati, pagamenti e fatture">${esc(c.name)}</button><small>${esc(sm.line)}</small></div>${sm.pills ? `<div class="pills">${sm.pills}</div>` : ''}<button type="button" class="cl-chev" data-act="cl-toggle" data-id="${esc(c.id)}" aria-expanded="${open}" aria-label="${open ? 'Chiudi' : 'Apri'} ${esc(c.name)}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></div>
+    return `<article class="cl ${open ? 'open' : ''} ${clSel.has(c.id) ? 'sel' : ''}"><div class="cl-sum" data-act="cl-toggle" data-id="${esc(c.id)}"><label class="cl-check" aria-label="Seleziona ${esc(c.name)}"><input type="checkbox" data-clsel="${esc(c.id)}" ${clSel.has(c.id) ? 'checked' : ''}></label><div class="t"><button type="button" class="cl-name" data-act="client-pays" data-id="${esc(c.id)}" title="Apri la scheda: dati, pagamenti e fatture">${esc(c.name)}</button><small>${esc(sm.line)}</small></div>${sm.pills ? `<div class="pills">${sm.pills}</div>` : ''}<button type="button" class="cl-chev" data-act="cl-toggle" data-id="${esc(c.id)}" aria-expanded="${open}" aria-label="${open ? 'Chiudi' : 'Apri'} ${esc(c.name)}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></div>
       <div class="cl-body" ${open ? '' : 'hidden'}>
       ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
         return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
@@ -2101,10 +2125,10 @@ VIEWS.clienti = () => {
       ${ne.slice(0, 5).map(p => `<span><button type="button" class="cl-name" style="display:inline;font-size:.92rem" data-act="client-pays" data-id="${esc(p.clientId)}">${esc(byId('clients', p.clientId)?.name || '?')}</button> <span class="muted">· ${esc(pkgLabel(p))} · ${esc(pkgNearEnd(p))}</span></span>`).join('')}${ne.length > 5 ? `<span class="muted">e altri ${ne.length - 5}</span>` : ''}</div></div>`; })()}
   <div class="cl-tools">
     <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button type="button" class="btn small ghost" data-act="cl-all" data-v="open">Apri tutti</button><button type="button" class="btn small ghost" data-act="cl-all" data-v="close">Chiudi tutti</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button type="button" class="btn small ghost" data-act="cl-all" data-v="open">Apri tutti</button><button type="button" class="btn small ghost" data-act="cl-all" data-v="close">Chiudi tutti</button><label class="check" style="margin-left:4px"><input type="checkbox" id="cl-sel-all"> Seleziona tutti</label></div>
     <div class="seg" role="group" aria-label="Filtra clienti" style="min-width:min(100%,420px)">${[['tutti', 'Tutti'], ['attivi', 'In corso'], ['da-saldare', 'Da saldare'], ['disattivati', 'Disattivati']].map(([v, l]) => `<button type="button" data-act="cfilter" data-v="${v}" aria-pressed="${f === v}">${l}</button>`).join('')}</div>
   </div>
-  ${S.clients.length ? `<div class="cl-list" id="cl-list">${clientCards()}</div>` : `<section class="panel"><div class="empty"><p>Qui tieni traccia dei clienti: pacchetti PT e Coaching, lezioni fatte, visite nutrizionali e pagamenti.</p><button class="btn primary" data-act="new-client">Aggiungi il primo cliente</button></div></section>`}`;
+  ${S.clients.length ? `<div class="cl-list" id="cl-list">${clientCards()}</div><div class="bulk-bar" id="clbulk" hidden></div>` : `<section class="panel"><div class="empty"><p>Qui tieni traccia dei clienti: pacchetti PT e Coaching, lezioni fatte, visite nutrizionali e pagamenti.</p><button class="btn primary" data-act="new-client">Aggiungi il primo cliente</button></div></section>`}`;
 };
 function clientForm(c) {
   const isNew = !c; c = c || {};
@@ -3461,6 +3485,7 @@ async function deleteDemo(btn) {
 
 /* ---------- eventi ---------- */
 document.addEventListener('click', e => {
+  if (e.target.closest('.cl-check')) return;
   const ms = $('#f-cat'); if (ms && ms.open && !e.target.closest('#f-cat')) ms.open = false;
   const t = e.target.closest('[data-act]'); if (!t) return;
   const a = t.dataset.act, id = t.dataset.id;
@@ -3471,6 +3496,21 @@ document.addEventListener('click', e => {
   if (a === 'fx-add') return openForm({ title: 'Aggiungi una valuta', fields: [{ id: 'cur', label: 'Valuta', type: 'select', options: curOptions().filter(o => o.v !== BASE) }], async onSubmit(v) { setTimeout(() => rateForm(v.cur), 0); return true; } });
   if (a === 'fcat-clear') { S.ui.fCats = []; $$('[data-fcat]').forEach(b => b.checked = false); const sm = $('#f-cat-sum'); if (sm) sm.textContent = fCatSummary(); $('#txlist').innerHTML = txListFiltered(); return; }
   if (a === 'fcat-done') { const d = t.closest('details'); if (d) d.open = false; return; }
+  if (a === 'clbulk-clear') { clSel.clear(); $$('[data-clsel]').forEach(b => { b.checked = false; b.closest('.cl')?.classList.remove('sel'); }); clBulkBar(); return; }
+  if (a === 'clbulk-off' || a === 'clbulk-on') {
+    const off = a === 'clbulk-off', list = [...clSel].map(x => byId('clients', x)).filter(c => c && !!c.inactive !== off);
+    list.forEach(c => { if (off) { openClients.delete(c.id); put('clients', c.id, { ...strip(c), inactive: true, inactiveSince: todayISO() }); } else { const { inactive, inactiveSince, ...rest } = strip(c); put('clients', c.id, rest); } });
+    saveOpenClients(); clSel.clear();
+    toast(`${list.length} client${list.length === 1 ? 'e' : 'i'} ${off ? 'disattivat' : 'riattivat'}${list.length === 1 ? 'o' : 'i'}`);
+    return;
+  }
+  if (a === 'clbulk-del') {
+    const n = clSel.size;
+    if (!t.classList.contains('armed')) { t.classList.add('armed'); t.textContent = `Conferma: elimina ${n} con tutti i dati`; return; }
+    const list = [...clSel].map(x => byId('clients', x)).filter(Boolean); clSel.clear();
+    Promise.all(list.map(deleteClientData)).then(() => toast(`${list.length} client${list.length === 1 ? 'e eliminato' : 'i eliminati'}. I pagamenti restano tra le entrate.`));
+    return;
+  }
   if (a === 'bulk-clear') { txSel.clear(); $$('[data-txsel]').forEach(b => { b.checked = false; b.closest('.tx-selrow')?.classList.remove('sel'); }); bulkBar(); return; }
   if (a === 'bulk-edit') return bulkEditForm();
   if (a === 'bulk-del') {
@@ -3622,6 +3662,8 @@ document.addEventListener('change', async e => {
     const sm = $('#f-cat-sum'); if (sm) sm.textContent = fCatSummary();
     $('#txlist').innerHTML = txListFiltered();
   }
+  else if (el.dataset.clsel) { el.checked ? clSel.add(el.dataset.clsel) : clSel.delete(el.dataset.clsel); el.closest('.cl')?.classList.toggle('sel', el.checked); clBulkBar(); }
+  else if (el.id === 'cl-sel-all') { $$('[data-clsel]').forEach(b => { b.checked = el.checked; el.checked ? clSel.add(b.dataset.clsel) : clSel.delete(b.dataset.clsel); b.closest('.cl')?.classList.toggle('sel', el.checked); }); clBulkBar(); }
   else if (el.dataset.txsel) {
     el.checked ? txSel.add(el.dataset.txsel) : txSel.delete(el.dataset.txsel);
     el.closest('.tx-selrow')?.classList.toggle('sel', el.checked); bulkBar();
