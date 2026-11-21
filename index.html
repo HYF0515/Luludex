@@ -595,7 +595,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '50'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '51'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1623,8 +1623,8 @@ async function gapi(method, path, body) {
 // id evento fisso: "a0" + esadecimale dell'id dell'appuntamento (caratteri ammessi da Google: 0-9 a-v)
 const gcalEvId = a => 'a0' + [...new TextEncoder().encode(a.id)].map(b => b.toString(16).padStart(2, '0')).join('');
 function gcalEvent(a) {
-  const c = byId('clients', a.clientId), sv = SERVICES[a.service] || { l: 'Appuntamento' };
-  const ev = { id: gcalEvId(a), summary: `${c?.name || 'Cliente'} · ${sv.l}${a.done ? ' ✓' : ''}`, description: a.notes || '', status: 'confirmed',
+  const sv = SERVICES[a.service] || { l: 'Appuntamento' };
+  const ev = { id: gcalEvId(a), summary: `${apptNames(a) || 'Cliente'} · ${sv.l}${a.done ? ' ✓' : ''}`, description: a.notes || '', status: 'confirmed',
     colorId: a.service === 'pt' ? '9' : a.service === 'prima' ? '2' : '5', extendedProperties: { private: { luludex: '1', apptId: a.id } } };
   if (a.time) {
     const [h, m] = a.time.split(':').map(Number), dur = +a.duration || 60, end = new Date(2000, 0, 1, h, m + dur);
@@ -1672,7 +1672,7 @@ async function gcalSync({ manual = false } = {}) {
   } finally { GC.busy = false; renderGcalBar(); }
 }
 // firma degli appuntamenti: se cambia (anche da un altro dispositivo) e il token è valido, risincronizza
-const gcalSig = () => S.appointments.filter(a => !a.gSrc).map(a => [a.id, a.date, a.time, a.duration, a.service, a.done ? 1 : 0, a.notes || '', byId('clients', a.clientId)?.name || ''].join('|')).sort().join('\n');
+const gcalSig = () => S.appointments.filter(a => !a.gSrc).map(a => [a.id, a.date, a.time, a.duration, a.service, a.done ? 1 : 0, a.notes || '', apptNames(a)].join('|')).sort().join('\n');
 let gcalT;
 function gcalMaybe() {
   if (!gcalClientId() || !gcalOn() || !gcalTok() || GC.busy) return;
@@ -1943,7 +1943,11 @@ const apptsSorted = list => [...list].sort((a, b) => apptKey(a).localeCompare(ap
 const apptPast = a => { const now = new Date(), d = isoOf(now), t = pad(now.getHours()) + ':' + pad(now.getMinutes()); return a.date < d || (a.date === d && (a.time || '00:00') <= t); };
 const weekStart = iso => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return isoOf(d); };
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return isoOf(d); };
-const nextAppt = clientId => apptsSorted(S.appointments.filter(a => a.clientId === clientId && !a.done && !apptPast(a)))[0];
+// Appuntamenti PT in due: un secondo cliente (clientId2); la lezione si conta a entrambi
+const apptClients = a => [a.clientId, a.service === 'pt' ? a.clientId2 : ''].filter(Boolean);
+const apptHas = (a, id) => a.clientId === id || (a.service === 'pt' && a.clientId2 === id);
+const apptNames = a => apptClients(a).map(id => byId('clients', id)?.name || 'Cliente eliminato').join(' + ');
+const nextAppt = clientId => apptsSorted(S.appointments.filter(a => apptHas(a, clientId) && !a.done && !apptPast(a)))[0];
 const apptWhen = a => `${new Date(a.date + 'T12:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} ${a.time || ''}`.trim();
 // abbonamento PT a cui contare la lezione: quello attivo in quella data, altrimenti quello in corso
 function ptPkgFor(clientId, date) {
@@ -1954,7 +1958,7 @@ function apptRow(a) {
   const c = byId('clients', a.clientId), sv = SERVICES[a.service] || SERVICES.pt, late = !a.done && apptPast(a);
   const p = a.packageId ? byId('packages', a.packageId) : null;
   return `<div class="ap-row ${a.done ? 'done' : ''} ${late ? 'late' : ''}">
-    <button type="button" class="ap-main" data-act="edit-appt" data-id="${esc(a.id)}"><span class="ap-time">${esc(a.time || '—')}</span><span class="l"><b>${esc(c?.name || 'Cliente eliminato')}</b></span></button>
+    <button type="button" class="ap-main" data-act="edit-appt" data-id="${esc(a.id)}"><span class="ap-time">${esc(a.time || '—')}</span><span class="l"><b>${esc(apptNames(a))}</b></span></button>
     <span class="ap-side"><span class="pill ${sv.c === 'acc' ? 'work' : sv.c}">${esc(sv.l)}</span>${a.done
       ? `<span class="pill pos">✓ ${a.service === 'pt' ? 'Lezione fatta' : 'Visita fatta'}</span><button type="button" class="btn small ghost" data-act="appt-undo" data-id="${esc(a.id)}">Annulla</button>`
       : `${late ? '<span class="pill warn">Da segnare</span>' : ''}<button type="button" class="btn small ${late ? 'primary' : ''}" data-act="appt-done" data-id="${esc(a.id)}">${sv.done}</button>`}</span>
@@ -2011,19 +2015,21 @@ function apptForm(a, preset) {
     fields: [
       { id: 'clientId', label: 'Cliente', type: 'select', value: a.clientId || '', options: clientChoices(a.clientId, '— scegli il cliente —') },
       { id: 'service', type: 'seg', label: 'Servizio', value: a.service, options: [{ v: 'pt', l: 'PT' }, { v: 'prima', l: 'Prima visita' }, { v: 'controllo', l: 'Visita di controllo' }] },
+      { id: 'clientId2', label: 'Vengono in due? Secondo cliente', type: 'select', value: a.clientId2 || '', options: clientChoices(a.clientId2, '— no, solo uno —') },
       [{ id: 'date', label: 'Data', type: 'date', value: a.date, required: true }, { id: 'time', label: 'Ora', type: 'time', value: a.time || '', required: true }],
       { id: 'duration', label: 'Durata', type: 'select', value: String(a.duration || 60), options: [30, 45, 60, 75, 90, 120].map(m => ({ v: String(m), l: m + ' minuti' })) },
       { id: 'notes', label: 'Note', value: a.notes || '', placeholder: 'Es. gambe e core, portare il diario alimentare' }
     ],
-    onChange(v, form, ev) { if (ev?.target?.name === 'service' && v.service !== 'pt' && form.elements.duration.value === '60') form.elements.duration.value = v.service === 'prima' ? '60' : '45'; },
+    onChange(v, form, ev) { showField(form, 'clientId2', v.service === 'pt'); if (ev?.target?.name === 'service' && v.service !== 'pt' && form.elements.duration.value === '60') form.elements.duration.value = v.service === 'prima' ? '60' : '45'; },
     validate(v) {
       if (!v.clientId) return 'Scegli il cliente.';
+      if (v.service === 'pt' && v.clientId2 && v.clientId2 === v.clientId) return 'Il secondo cliente deve essere diverso dal primo.';
       if (!v.date) return 'Indica la data.';
       if (!v.time) return 'Indica l\'ora.';
     },
     async onSubmit(v) {
       const id = a.id || uid();
-      const doc = { ...strip(a), clientId: v.clientId, service: v.service, date: v.date, time: v.time, duration: +v.duration || 60, notes: v.notes.trim(), done: !!a.done, createdAt: a.createdAt || Date.now() };
+      const doc = { ...strip(a), clientId: v.clientId, clientId2: v.service === 'pt' ? (v.clientId2 || '') : '', service: v.service, date: v.date, time: v.time, duration: +v.duration || 60, notes: v.notes.trim(), done: !!a.done, createdAt: a.createdAt || Date.now() };
       const clash = S.appointments.find(x => x.id !== id && x.date === v.date && x.time === v.time);
       const ok = await put('appointments', id, doc);
       if (ok) { S.ui.calDate = v.date; toast((isNew ? 'Appuntamento fissato' : 'Appuntamento aggiornato') + (clash ? ` · attenzione: alla stessa ora c'è anche ${byId('clients', clash.clientId)?.name || 'un altro cliente'}` : '')); }
@@ -2037,19 +2043,24 @@ async function apptDone(a) {
   if (!a || a.done) return;
   const c = byId('clients', a.clientId);
   if (a.service !== 'pt') return visitForm(null, a.clientId, { kind: a.service, date: a.date, apptId: a.id });
-  const p = ptPkgFor(a.clientId, a.date), ym = ymOf(a.date);
-  if (!p) { await put('appointments', a.id, { ...strip(a), done: true, packageId: '', countedYm: '' }); toast(`Segnata come fatta. ${c?.name || 'Il cliente'} non ha un abbonamento PT: la lezione non è stata contata.`, true); return; }
-  const n = (+pkgByMonth(p)[ym] || 0) + 1;
-  await put('packages', p.id, pkgWithMonth(p, ym, n));
-  await put('appointments', a.id, { ...strip(a), done: true, packageId: p.id, countedYm: ym });
-  const np = byId('packages', p.id), tot = +np.lessons || 0, done = pkgDone(np);
-  toast(`Lezione contata: ${c?.name || ''} · ${done}/${tot}${tot && done >= tot ? ' · abbonamento completato' : ''}`);
+  const ym = ymOf(a.date), doc = { ...strip(a), done: true, packageId: '', countedYm: '', packageId2: '' }, msgs = [], miss = [];
+  for (const [i, cid] of apptClients(a).entries()) {
+    const p = ptPkgFor(cid, a.date), name = byId('clients', cid)?.name || 'Il cliente';
+    if (!p) { miss.push(name); continue; }
+    await put('packages', p.id, pkgWithMonth(p, ym, (+pkgByMonth(p)[ym] || 0) + 1));
+    if (i === 0) doc.packageId = p.id; else doc.packageId2 = p.id;
+    doc.countedYm = ym;
+    const np = byId('packages', p.id), tot = +np.lessons || 0, done = pkgDone(np);
+    msgs.push(`${name} ${done}/${tot}${tot && done >= tot ? ' (completato)' : ''}`);
+  }
+  await put('appointments', a.id, doc);
+  toast((msgs.length ? 'Lezione contata: ' + msgs.join(' · ') : 'Segnata come fatta') + (miss.length ? `. ${miss.join(' e ')} senza abbonamento PT: non contata.` : ''), !!miss.length && !msgs.length);
 }
 async function apptUndo(a) {
   if (!a || !a.done) return;
-  if (a.packageId && a.countedYm) { const p = byId('packages', a.packageId); if (p) await put('packages', p.id, pkgWithMonth(p, a.countedYm, Math.max(0, (+pkgByMonth(p)[a.countedYm] || 0) - 1))); }
-  await put('appointments', a.id, { ...strip(a), done: false, packageId: '', countedYm: '' });
-  toast(a.visitId ? 'Segno tolto. La visita resta registrata nella scheda del cliente: eliminala da lì se serve.' : a.packageId ? 'Lezione tolta dall\'abbonamento' : 'Segno tolto');
+  if (a.countedYm) for (const pid of [a.packageId, a.packageId2].filter(Boolean)) { const p = byId('packages', pid); if (p) await put('packages', p.id, pkgWithMonth(p, a.countedYm, Math.max(0, (+pkgByMonth(p)[a.countedYm] || 0) - 1))); }
+  await put('appointments', a.id, { ...strip(a), done: false, packageId: '', packageId2: '', countedYm: '' });
+  toast(a.visitId ? 'Segno tolto. La visita resta registrata nella scheda del cliente: eliminala da lì se serve.' : a.packageId || a.packageId2 ? (a.packageId && a.packageId2 ? 'Lezione tolta dai due abbonamenti' : 'Lezione tolta dall\'abbonamento') : 'Segno tolto');
 }
 function clientCards() {
   const f = S.ui.cFilter || 'attivi', q = (S.ui.cq || '').trim().toLowerCase();
@@ -2241,7 +2252,7 @@ function sheetPayRow(t) {
 }
 function sheetApptRow(a) {
   const sv = SERVICES[a.service] || SERVICES.pt, late = !a.done && apptPast(a);
-  return `<button type="button" class="vs-row" data-act="edit-appt" data-id="${esc(a.id)}"><span class="l" style="flex-direction:row;gap:14px;align-items:baseline"><span class="num" style="min-width:150px">${esc(apptWhen(a))}</span><b>${esc(sv.l)}</b></span><span>${a.done ? `<span class="pill pos">✓ ${a.service === 'pt' ? 'Lezione fatta' : 'Visita fatta'}</span>` : late ? '<span class="pill warn">Da segnare</span>' : '<span class="pill work">In programma</span>'}</span></button>`;
+  return `<button type="button" class="vs-row" data-act="edit-appt" data-id="${esc(a.id)}"><span class="l" style="flex-direction:row;gap:14px;align-items:baseline"><span class="num" style="min-width:150px">${esc(apptWhen(a))}</span><b>${esc(sv.l)}${apptClients(a).length > 1 ? ' · in due' : ''}</b></span><span>${a.done ? `<span class="pill pos">✓ ${a.service === 'pt' ? 'Lezione fatta' : 'Visita fatta'}</span>` : late ? '<span class="pill warn">Da segnare</span>' : '<span class="pill work">In programma</span>'}</span></button>`;
 }
 function paymentsSheet(id) {
   const c = byId('clients', id); if (!c) return;
@@ -2260,7 +2271,7 @@ function paymentsSheet(id) {
     ${sheetPayStatus(id, tot, pays.length, dues)}
     ${sheetSection('pay', 'Storico pagamenti', pays.length ? `${pays.length} · ${money0(tot)}` : 'nessuno', (years.length ? years.map(y => { const ly = pays.filter(t => t.date.startsWith(y)); return `<div class="vs"><div class="pk-row"><b>${y}</b><span class="muted num">${money0(ly.reduce((s, t) => s + +t.amount, 0))}</span></div>${ly.map(sheetPayRow).join('')}</div>`; }).join('') : '<p class="muted" style="margin:0">Nessun pagamento registrato.</p>') + `
     <div class="pk-act"><button type="button" class="btn small" data-act="client-pay-new" data-id="${esc(id)}">+ Altro pagamento</button></div>`)}
-    ${(() => { const aps = apptsSorted(S.appointments.filter(a => a.clientId === id)).reverse(), next = aps.filter(a => !a.done && !apptPast(a)).length;
+    ${(() => { const aps = apptsSorted(S.appointments.filter(a => apptHas(a, id))).reverse(), next = aps.filter(a => !a.done && !apptPast(a)).length;
       return sheetSection('appt', 'Storico appuntamenti', aps.length ? `${aps.length}${next ? ' · ' + next + ' in arrivo' : ''}` : 'nessuno', (aps.length ? aps.map(sheetApptRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun appuntamento.</p>') + `<div class="pk-act"><button type="button" class="btn small" data-act="new-appt" data-client="${esc(id)}">+ Appuntamento</button></div>`); })()}
     <div class="vs"><div class="pk-row"><b>Fatture emesse</b><span class="muted">${invs.length ? `${invs.length} · ${money0(invs.reduce((s, i) => s + (+i.amount || 0), 0))}` : ''}</span></div>
       ${invs.length ? invs.map(invoiceRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessuna fattura.</p>'}
@@ -3497,7 +3508,7 @@ document.addEventListener('click', e => {
   if (a === 'client-deactivate') {
     if (!t.classList.contains('armed')) { t.classList.add('armed'); t.textContent = 'Conferma: disattiva'; return; }
     const c = byId('clients', id); if (!c) return;
-    const fut = S.appointments.filter(x => x.clientId === id && !x.done && !apptPast(x)).length;
+    const fut = S.appointments.filter(x => apptHas(x, id) && !x.done && !apptPast(x)).length;
     openClients.delete(id); saveOpenClients();
     put('clients', id, { ...strip(c), inactive: true, inactiveSince: todayISO() }).then(ok => ok && toast(`${c.name} disattivato. Lo ritrovi sotto “Disattivati”.` + (fut ? ` Ha ancora ${fut} appuntament${fut === 1 ? 'o' : 'i'} in calendario.` : '')));
     return;
