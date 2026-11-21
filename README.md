@@ -17,6 +17,7 @@ Appointments are copied to a dedicated calendar "Luludex – Clienti" created by
 Each event has a fixed id derived from the appointment, so several devices can sync without duplicates. Edits and deletions in Luludex are mirrored; changes made in Google are not read back.
 Setup (Google Cloud console, project `luludex`): enable the **Google Calendar API**; on the OAuth consent screen add your Google account as a test user; in *Credentials* open the Web OAuth client and add `https://hyf0515.github.io` to *Authorized JavaScript origins*; put its client ID in `config.js` (`window.LULUDEX_GOOGLE_CLIENT_ID`).
 The Google token lasts one hour: while valid, changes sync automatically; afterwards tap **Sincronizza** in the Calendar section.
+**Importa da Google** (Calendar section) reads another calendar (e.g. the primary one; asks for the extra `calendar.readonly` permission), proposes client and service from each event title, and imports the selected events as appointments. Past ones come in as done without counting lessons again; already imported events are skipped; imported appointments are not copied back to the Luludex calendar.
 
 ## How it works
 

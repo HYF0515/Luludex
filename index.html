@@ -154,7 +154,14 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .msel-act{display:flex;justify-content:space-between;gap:8px;padding:8px 0 0;border-top:1px solid var(--line)}
 .tx-all{margin:2px 0 6px;font-size:.88rem}
 .gcal-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px 12px;margin-bottom:14px;font-size:.9rem}
-.gcal-bar>span:nth-child(2){flex:1;min-width:0}.gcal-bar.err .muted{color:var(--neg)}
+.gcal-bar>span:nth-child(2){flex:1;min-width:0}
+.sheet.wide{width:min(980px,100%);max-width:980px}
+.gi-list{display:flex;flex-direction:column;max-height:min(55vh,560px);overflow:auto;border-top:1px solid var(--line)}
+.gi-row{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(150px,220px) minmax(120px,170px);gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.gi-row.dup{opacity:.55}.gi-main{display:flex;flex-direction:column;min-width:0}.gi-main b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gi-row .tx-check{border:0}
+.gi-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--line)}
+@media (max-width:760px){.gi-row{grid-template-columns:28px minmax(0,1fr) minmax(0,1fr)}.gi-row .gi-main{grid-column:2/-1}.gi-row select:first-of-type{grid-column:2}}.gcal-bar.err .muted{color:var(--neg)}
 .gcal-ic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-weight:700;font-size:.8rem;background:var(--accent-soft);color:var(--accent);flex:none}
 .tx-selrow{display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center}.tx-selrow.sel .tx{background:var(--surface-2)}
 .tx-check{display:flex;align-items:center;justify-content:center;height:100%;cursor:pointer;border-bottom:1px solid var(--line)}.tx-check input{width:17px;height:17px;cursor:pointer}
@@ -588,7 +595,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '47'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '48'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1549,6 +1556,7 @@ function bulkEditForm() {
    sincronizzano più dispositivi. Il token Google dura un'ora: finché è valido la sincronizzazione
    è automatica; poi basta toccare "Sincronizza". */
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
+const GCAL_READ = 'https://www.googleapis.com/auth/calendar.readonly';
 const GCAL_API = 'https://www.googleapis.com/calendar/v3';
 const GCAL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome'; } catch (e) { return 'Europe/Rome'; } })();
 const GC = { busy: false, last: '', err: '', sig: '' };
@@ -1564,7 +1572,7 @@ const loadGis = () => gisP || (gisP = new Promise((res, rej) => {
 }));
 // Il client Google si prepara in anticipo (all'apertura dell'app): così al tocco su Collega / Sincronizza
 // la finestrella di Google parte subito e il browser non la blocca come popup non richiesto.
-let gcalTC = null, gcalWait = null;
+let gcalTC = null, gcalTCR = null, gcalWait = null;
 function gcalInit() {
   if (!gcalClientId() || gcalTC) return;
   loadGis().then(() => {
@@ -1582,8 +1590,22 @@ function gcalInit() {
         w.rej(new Error(e?.type === 'popup_closed' ? 'Finestra di Google chiusa prima di finire.' : e?.type === 'popup_failed_to_open' ? 'Il browser ha bloccato la finestra di Google: consenti i popup per questo sito e riprova.' : 'Accesso a Google non riuscito (' + (e?.type || e?.message || 'errore') + ').'));
       }
     });
+    gcalTCR = google.accounts.oauth2.initTokenClient({
+      client_id: gcalClientId(), scope: GCAL_SCOPE + ' ' + GCAL_READ, prompt: '', include_granted_scopes: true,
+      callback: r => {
+        const w = gcalWait; gcalWait = null; if (!w) return;
+        if (r.error || !r.access_token) return w.rej(new Error(r.error_description || r.error || 'Accesso a Google non riuscito.'));
+        if (!google.accounts.oauth2.hasGrantedAllScopes(r, GCAL_SCOPE, GCAL_READ)) return w.rej(new Error('Per importare serve il permesso di vedere i calendari: riprova e lascia spuntate le caselle.'));
+        LS.set('luludex.gcalTok', { t: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000, read: true }); w.res(r.access_token);
+      },
+      error_callback: e => { const w = gcalWait; gcalWait = null; if (w) w.rej(new Error(e?.type === 'popup_failed_to_open' ? 'Il browser ha bloccato la finestra di Google: consenti i popup per questo sito e riprova.' : 'Accesso a Google non riuscito.')); }
+    });
     renderGcalBar();
   }).catch(e => { GC.err = e.message; renderGcalBar(); });
+}
+function gcalAuthRead() {
+  if (!gcalTCR) { gcalInit(); return Promise.reject(new Error('Sto preparando il collegamento a Google: riprova tra qualche secondo.')); }
+  return new Promise((res, rej) => { gcalWait = { res, rej }; gcalTCR.requestAccessToken(); });
 }
 // deve essere chiamata direttamente dal tocco (niente attese prima)
 function gcalAuth() {
@@ -1630,7 +1652,7 @@ async function gcalSync({ manual = false } = {}) {
       const r = await gapi('GET', `/calendars/${cal}/events?maxResults=2500&showDeleted=true&fields=items(id,status,summary,description,colorId,start,end),nextPageToken${pt ? '&pageToken=' + encodeURIComponent(pt) : ''}`);
       (r.items || []).forEach(e => have.set(e.id, e)); pt = r.nextPageToken || '';
     } while (pt);
-    const want = new Map(S.appointments.filter(a => a.date).map(a => [gcalEvId(a), gcalEvent(a)]));
+    const want = new Map(S.appointments.filter(a => a.date && !a.gSrc).map(a => [gcalEvId(a), gcalEvent(a)]));
     const same = (e, w) => e && e.status !== 'cancelled' && e.summary === w.summary && (e.description || '') === w.description && (e.colorId || '') === w.colorId
       && (e.start?.dateTime || e.start?.date || '').slice(0, 16) === (w.start.dateTime || w.start.date).slice(0, 16) && (e.end?.dateTime || e.end?.date || '').slice(0, 16) === (w.end.dateTime || w.end.date).slice(0, 16);
     let n = 0;
@@ -1650,7 +1672,7 @@ async function gcalSync({ manual = false } = {}) {
   } finally { GC.busy = false; renderGcalBar(); }
 }
 // firma degli appuntamenti: se cambia (anche da un altro dispositivo) e il token è valido, risincronizza
-const gcalSig = () => S.appointments.map(a => [a.id, a.date, a.time, a.duration, a.service, a.done ? 1 : 0, a.notes || '', byId('clients', a.clientId)?.name || ''].join('|')).sort().join('\n');
+const gcalSig = () => S.appointments.filter(a => !a.gSrc).map(a => [a.id, a.date, a.time, a.duration, a.service, a.done ? 1 : 0, a.notes || '', byId('clients', a.clientId)?.name || ''].join('|')).sort().join('\n');
 let gcalT;
 function gcalMaybe() {
   if (!gcalClientId() || !gcalOn() || !gcalTok() || GC.busy) return;
@@ -1670,7 +1692,7 @@ function gcalBarHTML() {
   if (!gcalClientId()) return '';
   if (!gcalOn()) return `<div class="gcal-bar"><span class="gcal-ic" aria-hidden="true">G</span><span>Google Calendar</span><button type="button" class="btn small" data-act="gcal-connect">Collega</button></div>`;
   const st = GC.busy ? 'Sincronizzazione…' : GC.err ? GC.err : GC.last ? 'Sincronizzato alle ' + GC.last : gcalTok() ? 'Collegato' : 'Collegato · tocca Sincronizza';
-  return `<div class="gcal-bar ${GC.err ? 'err' : ''}"><span class="gcal-ic" aria-hidden="true">G</span><span>Google Calendar <span class="muted">· ${esc(st)}</span></span><button type="button" class="btn small" data-act="gcal-sync" ${GC.busy ? 'disabled' : ''}>Sincronizza</button></div>`;
+  return `<div class="gcal-bar ${GC.err ? 'err' : ''}"><span class="gcal-ic" aria-hidden="true">G</span><span>Google Calendar <span class="muted">· ${esc(st)}</span></span><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn small" data-act="gi-open">Importa da Google</button><button type="button" class="btn small" data-act="gcal-sync" ${GC.busy ? 'disabled' : ''}>Sincronizza</button></div></div>`;
 }
 function renderGcalBar() { const el = $('#gcal-bar'); if (el) el.innerHTML = gcalBarHTML(); }
 async function gcalDisconnect() {
@@ -1679,6 +1701,99 @@ async function gcalDisconnect() {
   try { if (tok && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(tok, () => {}); } catch (e) {}
   await saveSettings({ gcalOn: false });
   toast('Google Calendar scollegato. Il calendario "Luludex – Clienti" resta su Google: puoi eliminarlo da lì.');
+}
+
+/* ---------- Importa da Google Calendar: lo storico degli appuntamenti fissati su Google ----------
+   Legge un calendario scelto (es. quello principale), propone per ogni evento il cliente e il servizio
+   riconosciuti dal titolo; si controlla la lista e si importa. Gli eventi già importati non si ripetono.
+   Gli appuntamenti passati entrano come "fatti" ma NON contano lezioni nei pacchetti (sono già nello storico). */
+const GI = { cals: [], cal: '', from: '', to: '', rows: [], loading: false, err: '' };
+const normTxt = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function guessClient(title) {
+  const t = ' ' + normTxt(title) + ' ';
+  let best = null, score = 0;
+  for (const c of S.clients) {
+    const n = normTxt(c.name); if (!n) continue;
+    const parts = n.split(' ').filter(x => x.length > 1);
+    let sc = 0;
+    if (t.includes(' ' + n + ' ')) sc = 100 + n.length;
+    else if (parts.length > 1 && parts.every(x => t.includes(' ' + x + ' '))) sc = 80 + n.length;
+    else if (parts.length > 1 && t.includes(' ' + parts[parts.length - 1] + ' ') && t.includes(' ' + parts[0] + ' ')) sc = 70;
+    if (sc > score) { score = sc; best = c; }
+  }
+  if (!best) { // solo il nome o solo il cognome, se identifica un solo cliente
+    const hits = S.clients.filter(c => normTxt(c.name).split(' ').some(x => x.length > 2 && t.includes(' ' + x + ' ')));
+    if (hits.length === 1) best = hits[0];
+  }
+  return best?.id || '';
+}
+const guessService = title => { const t = normTxt(title); return /\bprima\b/.test(t) ? 'prima' : /controllo|visita|dieta|nutri/.test(t) ? 'controllo' : 'pt'; };
+async function gimportOpen() {
+  try { if (!(LS.get('luludex.gcalTok', null)?.read && gcalTok())) await gcalAuthRead(); }
+  catch (e) { toast(e.message, true); return; }
+  const y = todayISO().slice(0, 4);
+  Object.assign(GI, { from: GI.from || `${y}-01-01`, to: GI.to || todayISO(), rows: [], err: '', loading: true });
+  gimportRender();
+  try {
+    const r = await gapi('GET', '/users/me/calendarList?minAccessRole=reader&fields=items(id,summary,primary)');
+    GI.cals = (r.items || []).filter(c => c.id !== S.settings.gcalId).sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0));
+    GI.cal = GI.cal && GI.cals.some(c => c.id === GI.cal) ? GI.cal : (GI.cals[0]?.id || '');
+  } catch (e) { GI.err = e.code === 403 ? 'Google non permette di leggere i calendari: controlla che la Google Calendar API sia attiva.' : e.message; }
+  GI.loading = false; gimportRender();
+}
+async function gimportLoad() {
+  GI.loading = true; GI.err = ''; GI.rows = []; gimportRender();
+  try {
+    const have = new Set(S.appointments.filter(a => a.gSrc).map(a => a.gSrc));
+    const min = new Date(GI.from + 'T00:00:00').toISOString(), max = new Date(addDays(GI.to, 1) + 'T00:00:00').toISOString();
+    let pt = '', items = [];
+    do {
+      const r = await gapi('GET', `/calendars/${encodeURIComponent(GI.cal)}/events?singleEvents=true&orderBy=startTime&maxResults=2500&timeMin=${encodeURIComponent(min)}&timeMax=${encodeURIComponent(max)}&fields=items(id,status,summary,description,start,end),nextPageToken${pt ? '&pageToken=' + encodeURIComponent(pt) : ''}`);
+      items = items.concat(r.items || []); pt = r.nextPageToken || '';
+    } while (pt && items.length < 5000);
+    const today = todayISO();
+    GI.rows = items.filter(e => e.status !== 'cancelled' && e.start?.dateTime).map(e => {
+      const st = new Date(e.start.dateTime), en = new Date(e.end?.dateTime || e.start.dateTime);
+      const date = isoOf(st), time = `${pad(st.getHours())}:${pad(st.getMinutes())}`, dur = Math.max(15, Math.round((en - st) / 60000)) || 60;
+      const src = GI.cal + '|' + e.id, clientId = guessClient(e.summary);
+      return { src, title: e.summary || '(senza titolo)', notes: e.description || '', date, time, dur, clientId, service: guessService(e.summary), on: !!clientId && !have.has(src), done: date < today, dup: have.has(src) };
+    });
+  } catch (e) { GI.err = e.message; }
+  GI.loading = false; gimportRender();
+}
+function gimportRender() {
+  const m = $('#modal'); if (!m) return;
+  const opts = clientChoices('', '— scegli il cliente —');
+  const n = GI.rows.filter(r => r.on && !r.dup && r.clientId).length, found = GI.rows.filter(r => !r.dup).length, matched = GI.rows.filter(r => !r.dup && r.clientId).length;
+  m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title"><header><h2 id="m-title">Importa da Google Calendar</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header>
+    <div class="body gi">
+      <div class="filters">
+        <div class="field"><label for="gi-cal">Calendario</label><select class="input" id="gi-cal">${GI.cals.map(c => `<option value="${esc(c.id)}" ${c.id === GI.cal ? 'selected' : ''}>${esc(c.summary || c.id)}${c.primary ? ' (principale)' : ''}</option>`).join('')}</select></div>
+        <div class="field"><label for="gi-from">Dal</label><input class="input" type="date" id="gi-from" value="${esc(GI.from)}"></div>
+        <div class="field"><label for="gi-to">Al</label><input class="input" type="date" id="gi-to" value="${esc(GI.to)}"></div>
+        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button type="button" class="btn" data-act="gi-load" ${GI.loading || !GI.cal ? 'disabled' : ''}>${GI.loading ? 'Cerco…' : 'Cerca eventi'}</button></div>
+      </div>
+      ${GI.err ? `<div class="form-err">${esc(GI.err)}</div>` : ''}
+      ${GI.rows.length ? `<div class="pk-row" style="margin:4px 0"><span class="muted">${found} eventi · ${matched} con il cliente riconosciuto${GI.rows.some(r => r.dup) ? ` · ${GI.rows.filter(r => r.dup).length} già importati` : ''}</span><label class="check"><input type="checkbox" id="gi-all" ${n && n === matched ? 'checked' : ''}> Seleziona tutti</label></div>
+      <div class="gi-list">${GI.rows.map((r, i) => `<div class="gi-row ${r.dup ? 'dup' : ''}">
+        <label class="tx-check"><input type="checkbox" data-gi="${i}" data-k="on" ${r.on && !r.dup ? 'checked' : ''} ${r.dup ? 'disabled' : ''}></label>
+        <div class="gi-main"><b>${esc(r.title)}</b><small class="muted">${dShort(r.date)} · ${esc(r.time)} · ${r.dur} min${r.dup ? ' · già importato' : r.done ? '' : ' · futuro'}</small></div>
+        <select class="input" data-gi="${i}" data-k="clientId" ${r.dup ? 'disabled' : ''}>${opts.map(o => `<option value="${esc(o.v)}" ${o.v === r.clientId ? 'selected' : ''}>${esc(o.l)}</option>`).join('')}</select>
+        <select class="input" data-gi="${i}" data-k="service" ${r.dup ? 'disabled' : ''}>${Object.entries(SERVICES).map(([k, v]) => `<option value="${k}" ${k === r.service ? 'selected' : ''}>${esc(v.l)}</option>`).join('')}</select>
+      </div>`).join('')}</div>` : GI.loading ? '' : `<p class="muted" style="margin:0">Scegli il calendario e il periodo, poi “Cerca eventi”.</p>`}
+    </div>
+    <footer class="gi-foot"><span class="muted">${GI.rows.length ? `${n} da importare` : ''}</span><div style="display:flex;gap:8px"><button type="button" class="btn ghost" data-act="close">Annulla</button><button type="button" class="btn primary" data-act="gi-do" ${n ? '' : 'disabled'}>Importa ${n || ''}</button></div></footer></div>`;
+  m.hidden = false;
+}
+async function gimportDo() {
+  const list = GI.rows.filter(r => r.on && !r.dup && r.clientId);
+  if (!list.length) return;
+  let i = 0;
+  for (const r of list) {
+    await put('appointments', uid(), { clientId: r.clientId, service: r.service, date: r.date, time: r.time, duration: r.dur, notes: r.notes.slice(0, 500), done: r.done, packageId: '', countedYm: '', gSrc: r.src, createdAt: Date.now() + i++ });
+  }
+  closeModal();
+  toast(`${list.length} appuntament${list.length === 1 ? 'o importato' : 'i importati'} da Google Calendar`);
 }
 
 /* ---------- clienti e pacchetti ---------- */
@@ -3338,6 +3453,9 @@ document.addEventListener('click', e => {
     Promise.all(ids.map(x => del('transactions', x))).then(() => toast(`${ids.length} moviment${ids.length === 1 ? 'o eliminato' : 'i eliminati'}`));
     return;
   }
+  if (a === 'gi-open') return gimportOpen();
+  if (a === 'gi-load') { GI.cal = $('#gi-cal')?.value || GI.cal; GI.from = $('#gi-from')?.value || GI.from; GI.to = $('#gi-to')?.value || GI.to; return gimportLoad(); }
+  if (a === 'gi-do') return gimportDo();
   if (a === 'gcal-connect') return gcalConnect();
   if (a === 'gcal-sync') return gcalSyncNow();
   if (a === 'gcal-off') { if (!t.classList.contains('armed')) { t.classList.add('armed'); t.textContent = 'Conferma: scollega'; return; } return gcalDisconnect(); }
@@ -3466,6 +3584,13 @@ document.addEventListener('change', async e => {
   const el = e.target;
   if (el.dataset && el.dataset.pick) { S.ui[el.dataset.pick] = el.value; render(); return; }
   if (el.id === 'f-acc') { S.ui.fAcc = el.value; $('#txlist').innerHTML = txListFiltered(); }
+  else if (el.dataset.gi != null) {
+    const r = GI.rows[+el.dataset.gi]; if (!r) return;
+    if (el.dataset.k === 'on') r.on = el.checked; else { r[el.dataset.k] = el.value; if (el.dataset.k === 'clientId') r.on = !!el.value; }
+    gimportRender();
+  }
+  else if (el.id === 'gi-all') { GI.rows.forEach(r => { if (!r.dup && r.clientId) r.on = el.checked; }); gimportRender(); }
+  else if (el.id === 'gi-cal' || el.id === 'gi-from' || el.id === 'gi-to') { GI[{ 'gi-cal': 'cal', 'gi-from': 'from', 'gi-to': 'to' }[el.id]] = el.value; }
   else if (el.dataset.fcat) {
     const id = el.dataset.fcat; S.ui.fCats = el.checked ? [...new Set([...S.ui.fCats, id])] : S.ui.fCats.filter(x => x !== id);
     const sm = $('#f-cat-sum'); if (sm) sm.textContent = fCatSummary();
