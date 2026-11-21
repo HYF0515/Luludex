@@ -153,6 +153,7 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .msel-g{display:flex;flex-direction:column;gap:2px}.msel-g .check{padding:4px 0;display:flex;align-items:center;gap:8px}
 .msel-act{display:flex;justify-content:space-between;gap:8px;padding:8px 0 0;border-top:1px solid var(--line)}
 .tx-all{margin:2px 0 6px;font-size:.88rem}
+.sheet-cl{display:flex;flex-direction:column;gap:12px;padding-bottom:4px}.sheet-cl .pk-act{margin-top:0}
 .cl-check{display:flex;align-items:center;padding:4px 10px 4px 0;cursor:pointer;flex:none}.cl-check input{width:17px;height:17px;cursor:pointer}
 .cl.sel{outline:2px solid var(--accent-soft);outline-offset:-1px}
 .cl-nm-row{display:flex;align-items:center;gap:4px 8px;min-width:0;flex-wrap:wrap}.cl .cl-sum>.t{flex:1 1 0}.cl-nm-row .cl-name{min-width:0}
@@ -603,7 +604,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '55'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '56'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1100,6 +1101,7 @@ const catIconSvg = (c, size = 18) => `<svg viewBox="0 0 24 24" width="${size}" h
 let raf = 0;
 function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
 function render() {
+  { const sc = $('#modal:not([hidden]) [data-sheet-client]'); if (sc) setTimeout(() => { if ($('#modal:not([hidden]) [data-sheet-client]')) paymentsSheet(sc.dataset.sheetClient); }, 0); }
   applyPalette(); applyTheme(); setTimeout(() => { gcalInit(); gcalMaybe(); }, 0);
   const v = $('#view');
   const locked = S.status === 'setup' || S.status === 'auth';
@@ -2095,6 +2097,13 @@ async function deleteClientData(c) {
   S.appointments.filter(x => x.clientId2 === c.id).forEach(x => put('appointments', x.id, { ...strip(x), clientId2: '' }));
   return del('clients', c.id);
 }
+// Contenuto della tendina del cliente (pacchetti, visite, azioni): usato anche nella scheda cliente
+function clientBodyHTML(c) {
+  const ps = clientPkgs(c.id);
+  return `      ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
+        return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
+      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button><button class="btn small" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica cliente</button>${c.inactive ? `<button class="btn small primary" data-act="client-reactivate" data-id="${esc(c.id)}">Riattiva</button>` : `<button class="btn small" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}`;
+}
 function clientCards() {
   setTimeout(clBulkBar, 0);
   const f = S.ui.cFilter || 'attivi', q = (S.ui.cq || '').trim().toLowerCase();
@@ -2110,9 +2119,7 @@ function clientCards() {
   return list.map(c => { const ps = clientPkgs(c.id), open = openClients.has(c.id) || (q && list.length <= 3), sm = clientSummary(c);
     return `<article class="cl ${open ? 'open' : ''} ${clSel.has(c.id) ? 'sel' : ''}"><div class="cl-sum" data-act="cl-toggle" data-id="${esc(c.id)}"><label class="cl-check" aria-label="Seleziona ${esc(c.name)}"><input type="checkbox" data-clsel="${esc(c.id)}" ${clSel.has(c.id) ? 'checked' : ''}></label><div class="t"><span class="cl-nm-row"><button type="button" class="cl-name" data-act="client-pays" data-id="${esc(c.id)}" title="Apri la scheda: dati, pagamenti e fatture">${esc(c.name)}</button><span class="ctags">${clientTags(c.id)}</span></span><small>${esc(sm.line)}</small></div>${sm.pills ? `<div class="pills">${sm.pills}</div>` : ''}<button type="button" class="cl-chev" data-act="cl-toggle" data-id="${esc(c.id)}" aria-expanded="${open}" aria-label="${open ? 'Chiudi' : 'Apri'} ${esc(c.name)}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></div>
       <div class="cl-body" ${open ? '' : 'hidden'}>
-      ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
-        return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
-      <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button><button class="btn small" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica cliente</button>${c.inactive ? `<button class="btn small primary" data-act="client-reactivate" data-id="${esc(c.id)}">Riattiva</button>` : `<button class="btn small" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}</div></article>`; }).join('');
+${clientBodyHTML(c)}</div></article>`; }).join('');
 }
 VIEWS.clienti = () => {
   const today = todayISO(), ym = ymOf(today), soon = isoOf(new Date(Date.now() + 30 * 864e5));
@@ -2301,10 +2308,11 @@ function paymentsSheet(id) {
   const invs = clientInvoices(id);
   const info = [['Telefono', c.phone], ['Email', c.email], ['Indirizzo', c.address], ['Codice Fiscale', c.cf], ['Partita IVA', c.vat], ['Note', c.notes]].filter(([, v]) => v);
   const m = $('#modal');
-  m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title"><header><h2 id="m-title">${esc(c.name)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header><div class="body">
+  m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title" data-sheet-client="${esc(id)}"><header><h2 id="m-title">${esc(c.name)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header><div class="body">
     ${c.inactive ? `<div class="pk-row" style="padding:10px 12px;border-radius:var(--r);background:var(--surface-2)"><span><b>Cliente disattivato</b>${c.inactiveSince ? ` <span class="muted">dal ${dShort(c.inactiveSince)}</span>` : ''}</span><button type="button" class="btn small primary" data-act="client-reactivate" data-id="${esc(id)}">Riattiva</button></div>` : ''}
     <div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Dati personali</b><button type="button" class="btn small ghost" data-act="edit-client" data-id="${esc(id)}">Modifica dati</button></div>
       ${info.length ? info.map(([k, v]) => `<div class="list-row"><div class="l"><span class="muted">${k}</span></div><span style="overflow-wrap:anywhere;text-align:right;${k === 'Codice Fiscale' || k === 'Partita IVA' ? 'font-family:var(--f-data);' : ''}">${esc(v)}</span></div>`).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun dato inserito: aggiungi indirizzo e codice fiscale con “Modifica dati”.</p>'}</div>
+    <div class="sheet-cl">${clientBodyHTML(c)}</div>
     ${sheetPayStatus(id, tot, pays.length, dues)}
     ${sheetSection('pay', 'Storico pagamenti', pays.length ? `${pays.length} · ${money0(tot)}` : 'nessuno', (years.length ? years.map(y => { const ly = pays.filter(t => t.date.startsWith(y)); return `<div class="vs"><div class="pk-row"><b>${y}</b><span class="muted num">${money0(ly.reduce((s, t) => s + +t.amount, 0))}</span></div>${ly.map(sheetPayRow).join('')}</div>`; }).join('') : '<p class="muted" style="margin:0">Nessun pagamento registrato.</p>') + `
     <div class="pk-act"><button type="button" class="btn small" data-act="client-pay-new" data-id="${esc(id)}">+ Altro pagamento</button></div>`)}
