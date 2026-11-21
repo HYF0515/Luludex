@@ -11,4 +11,4 @@ window.LULUDEX_FIREBASE = {
 
 // Google Calendar (sincronizzazione degli appuntamenti): ID client OAuth del progetto Google "luludex".
 // Finché è vuoto, il collegamento a Google Calendar non compare nell'app.
-window.LULUDEX_GOOGLE_CLIENT_ID = null;
+window.LULUDEX_GOOGLE_CLIENT_ID = "197273564986-oq6stjaufpcgqrijs5vt6f0fkdfdil3k.apps.googleusercontent.com";

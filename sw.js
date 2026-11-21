@@ -2,7 +2,7 @@
 // I file dell'app vengono sempre ricontrollati sul server (senza la cache HTTP del browser),
 // così gli aggiornamenti arrivano subito; la copia in cache si usa solo quando sei offline.
 // Le chiamate a Firebase non passano mai dalla cache.
-const CACHE = 'luludex-v45';
+const CACHE = 'luludex-v46';
 const SHELL = ['./', 'index.html', 'config.js', 'vendor/firebase-app-compat.js', 'vendor/firebase-auth-compat.js', 'vendor/firebase-firestore-compat.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
