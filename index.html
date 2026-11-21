@@ -175,6 +175,7 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .bulk-bar{position:sticky;bottom:12px;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--fg);color:var(--bg);border-radius:var(--r);padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.18);margin-top:10px}
 .bulk-bar .btn.ghost,.bulk-bar .btn:not(.primary){color:inherit;border-color:rgba(255,255,255,.35);background:transparent}
 body.bulk-on .fab{display:none!important}
+body.modal-lock{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 @media (max-width:760px){.bulk-bar{bottom:calc(92px + env(safe-area-inset-bottom));padding:8px 10px;gap:8px}.bulk-bar .btn{padding:6px 10px}.filters #f-cat-wrap{grid-column:1/-1}.msel-pop{min-width:100%}}
 
 .pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:.78rem;font-weight:600;background:var(--surface-2);color:var(--muted);white-space:nowrap}
@@ -326,7 +327,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--surface-2)}
 .list-row .l{display:flex;align-items:center;gap:10px;min-width:0}
 .list-row .l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-.modal{position:fixed;inset:0;z-index:50;background:rgba(10,12,18,.45);display:flex;align-items:flex-start;justify-content:center;padding:6vh max(16px, env(safe-area-inset-right,0px)) 24px max(16px, env(safe-area-inset-left,0px));overflow-y:auto}
+.modal{overscroll-behavior:contain;-webkit-overflow-scrolling:touch;position:fixed;inset:0;z-index:50;background:rgba(10,12,18,.45);display:flex;align-items:flex-start;justify-content:center;padding:6vh max(16px, env(safe-area-inset-right,0px)) 24px max(16px, env(safe-area-inset-left,0px));overflow-y:auto}
 .sheet{background:var(--surface);border-radius:14px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.25);border:1px solid var(--line)}
 .sheet.wide{max-width:860px}
 .sheet header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
@@ -602,7 +603,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '54'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '55'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2876,6 +2877,13 @@ function keepModalScroll(sameView) {
   const top = m.scrollTop, inner = $$('#modal .tbl-wrap, #modal .gi-list, #modal .sheet').map(x => [x.scrollTop, x.scrollLeft]);
   return () => requestAnimationFrame(() => { m.scrollTop = top; $$('#modal .tbl-wrap, #modal .gi-list, #modal .sheet').forEach((x, i) => { if (inner[i]) { x.scrollTop = inner[i][0]; x.scrollLeft = inner[i][1]; } }); });
 }
+// Con una finestra aperta la pagina sotto non scorre (su iPhone serve fissare il body e ricordare la posizione)
+let modalLockY = 0;
+new MutationObserver(() => {
+  const m = $('#modal'), open = m && !m.hidden, b = document.body;
+  if (open && !b.classList.contains('modal-lock')) { modalLockY = window.scrollY; b.style.top = -modalLockY + 'px'; b.classList.add('modal-lock'); }
+  else if (!open && b.classList.contains('modal-lock')) { b.classList.remove('modal-lock'); b.style.top = ''; window.scrollTo(0, modalLockY); }
+}).observe(document.getElementById('modal'), { attributes: true, attributeFilter: ['hidden'] });
 function closeModal() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; formState = null; }
 const setSeg = (form, id, val) => { if (!form.elements[id]) return; form.elements[id].value = val; $$(`[data-seg="${id}"]`, form).forEach(x => x.setAttribute('aria-pressed', x.dataset.v === val)); };
 const showField = (form, id, on) => { const f = form.querySelector(`[data-f="${id}"]`); if (f) f.hidden = !on; };
