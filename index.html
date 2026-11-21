@@ -604,7 +604,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '56'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '57'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1884,7 +1884,7 @@ function renewPreset(p) {
   const start = todayISO();
   return { kind: p.kind, months: p.months, perWeek: p.perWeek, lessons: p.kind === 'pt' ? (isLessonPack(p) ? +p.lessons : pkgLessons(p.months, p.perWeek)) : 0, price: p.price, startDate: start, endDate: +p.months ? calcEnd(start, p.months) : '', clientId: p.clientId };
 }
-function pkgHTML(p) {
+function pkgHTML(p, o = {}) {
   const st = PKG_STATUS[pkgStatus(p)], paid = pkgPaid(p), due = pkgDue(p), price = +p.price || 0, end = pkgEnd(p);
   let prog;
   if (p.kind === 'pt') {
@@ -1905,7 +1905,7 @@ function pkgHTML(p) {
     ${near ? `<span class="near-why">Attenzione: ${esc(near)}</span>` : ''}
     <small class="muted">${p.startDate ? (end ? `Dal ${dShort(p.startDate)} al ${dShort(end)}` : `Dal ${dShort(p.startDate)} · senza scadenza`) : 'Data di inizio non indicata'}</small>
     ${prog}
-    <div class="pk-row"><span>${pay}</span>${price ? `<span class="muted num">Pagati ${money0(paid)} su ${money0(price)}</span>` : ''}</div>
+    ${o.noPay ? '' : `<div class="pk-row"><span>${pay}</span>${price ? `<span class="muted num">Pagati ${money0(paid)} su ${money0(price)}</span>` : ''}</div>`}
     <div class="pk-act">${p.kind === 'pt' ? `<button class="btn small" data-act="lesson-add" data-id="${esc(p.id)}" aria-label="Aggiungi una lezione a questo mese">+1</button>${pkgByMonth(p)[ymOf(todayISO())] ? `<button class="btn small ghost" data-act="lesson-undo" data-id="${esc(p.id)}" aria-label="Togli una lezione da questo mese">−1</button>` : ''}` : ''}${due > 0 ? `<button class="btn small" data-act="pkg-pay" data-id="${esc(p.id)}">Registra pagamento</button>` : ''}${pkgCanRenew(p) ? `<button class="btn small primary" data-act="renew-pkg" data-id="${esc(p.id)}">Rinnova</button>` : ''}<button class="btn small ghost" data-act="edit-pkg" data-id="${esc(p.id)}">Modifica</button></div>
   </div>`;
 }
@@ -2103,6 +2103,16 @@ function clientBodyHTML(c) {
   return `      ${(() => { const shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), hid = ps.length - shown.length;
         return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
       <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button><button class="btn small" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica cliente</button>${c.inactive ? `<button class="btn small primary" data-act="client-reactivate" data-id="${esc(c.id)}">Riattiva</button>` : `<button class="btn small" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}`;
+}
+function sheetSubsHTML(c) {
+  const ps = clientPkgs(c.id), shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), na = nextAppt(c.id);
+  const subs = clientIsPT(c.id) || clientIsCoach(c.id);
+  return `<div class="sheet-cl">
+    ${subs ? `<div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Stato abbonamento</b>${ps.length && !shown.length ? `<button type="button" class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>` : ''}</div>
+      ${shown.length ? shown.map(p => pkgHTML(p, { noPay: true })).join('') : `<p class="muted" style="margin:0">Nessun abbonamento in corso.</p>`}</div>` : ''}
+    <div class="pk-act">${!ps.length && subs ? `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>` : ''}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button>${c.inactive ? '' : `<button class="btn small" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>
+    ${na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''}
+  </div>`;
 }
 function clientCards() {
   setTimeout(clBulkBar, 0);
@@ -2312,7 +2322,7 @@ function paymentsSheet(id) {
     ${c.inactive ? `<div class="pk-row" style="padding:10px 12px;border-radius:var(--r);background:var(--surface-2)"><span><b>Cliente disattivato</b>${c.inactiveSince ? ` <span class="muted">dal ${dShort(c.inactiveSince)}</span>` : ''}</span><button type="button" class="btn small primary" data-act="client-reactivate" data-id="${esc(id)}">Riattiva</button></div>` : ''}
     <div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Dati personali</b><button type="button" class="btn small ghost" data-act="edit-client" data-id="${esc(id)}">Modifica dati</button></div>
       ${info.length ? info.map(([k, v]) => `<div class="list-row"><div class="l"><span class="muted">${k}</span></div><span style="overflow-wrap:anywhere;text-align:right;${k === 'Codice Fiscale' || k === 'Partita IVA' ? 'font-family:var(--f-data);' : ''}">${esc(v)}</span></div>`).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun dato inserito: aggiungi indirizzo e codice fiscale con “Modifica dati”.</p>'}</div>
-    <div class="sheet-cl">${clientBodyHTML(c)}</div>
+    ${sheetSubsHTML(c)}
     ${sheetPayStatus(id, tot, pays.length, dues)}
     ${sheetSection('pay', 'Storico pagamenti', pays.length ? `${pays.length} · ${money0(tot)}` : 'nessuno', (years.length ? years.map(y => { const ly = pays.filter(t => t.date.startsWith(y)); return `<div class="vs"><div class="pk-row"><b>${y}</b><span class="muted num">${money0(ly.reduce((s, t) => s + +t.amount, 0))}</span></div>${ly.map(sheetPayRow).join('')}</div>`; }).join('') : '<p class="muted" style="margin:0">Nessun pagamento registrato.</p>') + `
     <div class="pk-act"><button type="button" class="btn small" data-act="client-pay-new" data-id="${esc(id)}">+ Altro pagamento</button></div>`)}
