@@ -153,6 +153,9 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .msel-g{display:flex;flex-direction:column;gap:2px}.msel-g .check{padding:4px 0;display:flex;align-items:center;gap:8px}
 .msel-act{display:flex;justify-content:space-between;gap:8px;padding:8px 0 0;border-top:1px solid var(--line)}
 .tx-all{margin:2px 0 6px;font-size:.88rem}
+.gcal-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px 12px;margin-bottom:14px;font-size:.9rem}
+.gcal-bar>span:nth-child(2){flex:1;min-width:0}.gcal-bar.err .muted{color:var(--neg)}
+.gcal-ic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-weight:700;font-size:.8rem;background:var(--accent-soft);color:var(--accent);flex:none}
 .tx-selrow{display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center}.tx-selrow.sel .tx{background:var(--surface-2)}
 .tx-check{display:flex;align-items:center;justify-content:center;height:100%;cursor:pointer;border-bottom:1px solid var(--line)}.tx-check input{width:17px;height:17px;cursor:pointer}
 .bulk-bar{position:sticky;bottom:12px;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--fg);color:var(--bg);border-radius:var(--r);padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.18);margin-top:10px}
@@ -585,7 +588,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '44'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '45'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1082,7 +1085,7 @@ const catIconSvg = (c, size = 18) => `<svg viewBox="0 0 24 24" width="${size}" h
 let raf = 0;
 function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
 function render() {
-  applyPalette(); applyTheme();
+  applyPalette(); applyTheme(); setTimeout(gcalMaybe, 0);
   const v = $('#view');
   const locked = S.status === 'setup' || S.status === 'auth';
   document.body.classList.toggle('locked', locked);
@@ -1539,6 +1542,132 @@ function bulkEditForm() {
     }
   });
 }
+/* ---------- Google Calendar: sincronizzazione a senso unico Luludex → Google ----------
+   Gli appuntamenti vanno in un calendario dedicato ("Luludex – Clienti") creato dall'app.
+   Permesso richiesto: calendar.app.created (solo i calendari creati da Luludex, non gli altri).
+   Ogni evento ha un id fisso ricavato dall'appuntamento, così non si creano doppioni anche se
+   sincronizzano più dispositivi. Il token Google dura un'ora: finché è valido la sincronizzazione
+   è automatica; poi basta toccare "Sincronizza". */
+const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
+const GCAL_API = 'https://www.googleapis.com/calendar/v3';
+const GCAL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome'; } catch (e) { return 'Europe/Rome'; } })();
+const GC = { busy: false, last: '', err: '', sig: '' };
+const gcalClientId = () => !S.local && window.LULUDEX_GOOGLE_CLIENT_ID || '';
+const gcalTok = () => { const t = LS.get('luludex.gcalTok', null); return t && t.exp > Date.now() + 60e3 ? t.t : ''; };
+const gcalOn = () => !!S.settings.gcalOn;
+let gisP;
+const loadGis = () => gisP || (gisP = new Promise((res, rej) => {
+  if (window.google?.accounts?.oauth2) return res();
+  const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+  sc.onload = () => res(); sc.onerror = () => { gisP = null; rej(new Error('Non riesco a caricare l\'accesso Google: controlla la connessione.')); };
+  document.head.appendChild(sc);
+}));
+// chiede il token a Google (deve partire da un tocco: apre una finestrella Google)
+function gcalAuth() {
+  return loadGis().then(() => new Promise((res, rej) => {
+    const tc = google.accounts.oauth2.initTokenClient({
+      client_id: gcalClientId(), scope: GCAL_SCOPE, prompt: '', hint: S.user?.email || undefined,
+      callback: r => {
+        if (r.error || !r.access_token) return rej(new Error(r.error_description || r.error || 'Accesso a Google non riuscito.'));
+        if (!google.accounts.oauth2.hasGrantedAllScopes(r, GCAL_SCOPE)) return rej(new Error('Serve il permesso per il calendario: riprova e lascia la casella spuntata.'));
+        LS.set('luludex.gcalTok', { t: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000 }); res(r.access_token);
+      },
+      error_callback: e => rej(new Error(e?.type === 'popup_closed' ? 'Finestra di Google chiusa.' : e?.type === 'popup_failed_to_open' ? 'Il browser ha bloccato la finestra di Google: consenti i popup e riprova.' : 'Accesso a Google non riuscito.'))
+    });
+    tc.requestAccessToken();
+  }));
+}
+async function gapi(method, path, body) {
+  const tok = gcalTok(); if (!tok) { const e = new Error('token'); e.code = 401; throw e; }
+  const r = await fetch(GCAL_API + path, { method, headers: { Authorization: 'Bearer ' + tok, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 204) return null;
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.error?.message || ('Errore Google ' + r.status)); e.code = r.status; if (r.status === 401) LS.del('luludex.gcalTok'); throw e; }
+  return j;
+}
+// id evento fisso: "a0" + esadecimale dell'id dell'appuntamento (caratteri ammessi da Google: 0-9 a-v)
+const gcalEvId = a => 'a0' + [...new TextEncoder().encode(a.id)].map(b => b.toString(16).padStart(2, '0')).join('');
+function gcalEvent(a) {
+  const c = byId('clients', a.clientId), sv = SERVICES[a.service] || { l: 'Appuntamento' };
+  const ev = { id: gcalEvId(a), summary: `${c?.name || 'Cliente'} · ${sv.l}${a.done ? ' ✓' : ''}`, description: a.notes || '', status: 'confirmed',
+    colorId: a.service === 'pt' ? '9' : a.service === 'prima' ? '2' : '5', extendedProperties: { private: { luludex: '1', apptId: a.id } } };
+  if (a.time) {
+    const [h, m] = a.time.split(':').map(Number), dur = +a.duration || 60, end = new Date(2000, 0, 1, h, m + dur);
+    const endDate = addDays(a.date, Math.floor((h * 60 + m + dur) / 1440));
+    ev.start = { dateTime: `${a.date}T${a.time}:00`, timeZone: GCAL_TZ };
+    ev.end = { dateTime: `${endDate}T${pad(end.getHours())}:${pad(end.getMinutes())}:00`, timeZone: GCAL_TZ };
+  } else { ev.start = { date: a.date }; ev.end = { date: addDays(a.date, 1) }; }
+  return ev;
+}
+async function gcalCalendar() {
+  let id = S.settings.gcalId;
+  if (id) { try { await gapi('GET', `/calendars/${encodeURIComponent(id)}`); return id; } catch (e) { if (e.code !== 404 && e.code !== 403) throw e; } }
+  const cal = await gapi('POST', '/calendars', { summary: 'Luludex – Clienti', description: 'Appuntamenti dei clienti, aggiornati da Luludex.', timeZone: GCAL_TZ });
+  await saveSettings({ gcalId: cal.id });
+  return cal.id;
+}
+async function gcalSync({ manual = false } = {}) {
+  if (!gcalClientId() || !gcalOn() || GC.busy) return;
+  if (!gcalTok()) { if (manual) GC.err = 'Tocca Sincronizza per riconnettere Google.'; renderGcalBar(); return; }
+  GC.busy = true; GC.err = ''; renderGcalBar();
+  try {
+    const cal = encodeURIComponent(await gcalCalendar());
+    const have = new Map(); let pt = '';
+    do {
+      const r = await gapi('GET', `/calendars/${cal}/events?maxResults=2500&showDeleted=true&fields=items(id,status,summary,description,colorId,start,end),nextPageToken${pt ? '&pageToken=' + encodeURIComponent(pt) : ''}`);
+      (r.items || []).forEach(e => have.set(e.id, e)); pt = r.nextPageToken || '';
+    } while (pt);
+    const want = new Map(S.appointments.filter(a => a.date).map(a => [gcalEvId(a), gcalEvent(a)]));
+    const same = (e, w) => e && e.status !== 'cancelled' && e.summary === w.summary && (e.description || '') === w.description && (e.colorId || '') === w.colorId
+      && (e.start?.dateTime || e.start?.date || '').slice(0, 16) === (w.start.dateTime || w.start.date).slice(0, 16) && (e.end?.dateTime || e.end?.date || '').slice(0, 16) === (w.end.dateTime || w.end.date).slice(0, 16);
+    let n = 0;
+    for (const [id, w] of want) {
+      const e = have.get(id);
+      if (same(e, w)) continue;
+      if (e) await gapi('PUT', `/calendars/${cal}/events/${id}`, w);
+      else { try { await gapi('POST', `/calendars/${cal}/events`, w); } catch (err) { if (err.code === 409) await gapi('PUT', `/calendars/${cal}/events/${id}`, w); else throw err; } }
+      n++;
+    }
+    for (const [id, e] of have) if (!want.has(id) && e.status !== 'cancelled') { try { await gapi('DELETE', `/calendars/${cal}/events/${id}`); n++; } catch (err) { if (err.code !== 404 && err.code !== 410) throw err; } }
+    GC.last = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }); GC.sig = gcalSig();
+    if (manual) toast(n ? `Google Calendar aggiornato (${n} modific${n === 1 ? 'a' : 'he'})` : 'Google Calendar già aggiornato');
+  } catch (e) {
+    GC.err = e.code === 401 ? 'Tocca Sincronizza per riconnettere Google.' : e.code === 403 ? 'Google ha negato l\'accesso: controlla che la Google Calendar API sia attiva nel progetto.' : (e.message || 'Sincronizzazione non riuscita.');
+    if (manual) toast(GC.err, true);
+  } finally { GC.busy = false; renderGcalBar(); }
+}
+// firma degli appuntamenti: se cambia (anche da un altro dispositivo) e il token è valido, risincronizza
+const gcalSig = () => S.appointments.map(a => [a.id, a.date, a.time, a.duration, a.service, a.done ? 1 : 0, a.notes || '', byId('clients', a.clientId)?.name || ''].join('|')).sort().join('\n');
+let gcalT;
+function gcalMaybe() {
+  if (!gcalClientId() || !gcalOn() || !gcalTok() || GC.busy) return;
+  if (gcalSig() === GC.sig) return;
+  clearTimeout(gcalT); gcalT = setTimeout(() => gcalSync(), 1500);
+}
+setInterval(gcalMaybe, 20000);
+async function gcalConnect() {
+  try { await gcalAuth(); if (!gcalOn()) await saveSettings({ gcalOn: true }); await gcalSync({ manual: true }); }
+  catch (e) { GC.err = e.message; toast(e.message, true); renderGcalBar(); }
+}
+async function gcalSyncNow() {
+  if (!gcalTok()) { try { await gcalAuth(); } catch (e) { GC.err = e.message; toast(e.message, true); renderGcalBar(); return; } }
+  return gcalSync({ manual: true });
+}
+function gcalBarHTML() {
+  if (!gcalClientId()) return '';
+  if (!gcalOn()) return `<div class="gcal-bar"><span class="gcal-ic" aria-hidden="true">G</span><span>Google Calendar</span><button type="button" class="btn small" data-act="gcal-connect">Collega</button></div>`;
+  const st = GC.busy ? 'Sincronizzazione…' : GC.err ? GC.err : GC.last ? 'Sincronizzato alle ' + GC.last : gcalTok() ? 'Collegato' : 'Collegato · tocca Sincronizza';
+  return `<div class="gcal-bar ${GC.err ? 'err' : ''}"><span class="gcal-ic" aria-hidden="true">G</span><span>Google Calendar <span class="muted">· ${esc(st)}</span></span><button type="button" class="btn small" data-act="gcal-sync" ${GC.busy ? 'disabled' : ''}>Sincronizza</button></div>`;
+}
+function renderGcalBar() { const el = $('#gcal-bar'); if (el) el.innerHTML = gcalBarHTML(); }
+async function gcalDisconnect() {
+  const tok = LS.get('luludex.gcalTok', null)?.t;
+  LS.del('luludex.gcalTok'); GC.last = ''; GC.err = ''; GC.sig = '';
+  try { if (tok && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(tok, () => {}); } catch (e) {}
+  await saveSettings({ gcalOn: false });
+  toast('Google Calendar scollegato. Il calendario "Luludex – Clienti" resta su Google: puoi eliminarlo da lì.');
+}
+
 /* ---------- clienti e pacchetti ---------- */
 // PT: 0 = pacchetto a lezioni (N lezioni, nessuna scadenza, finisce quando sono fatte)
 const PKG_MONTHS = { pt: [0, 3, 6, 12], coaching: [3, 6, 12] };
@@ -1721,6 +1850,7 @@ VIEWS.calendario = () => {
   }
   return `
   <div class="head title-only"><div><div class="eyebrow">Calendario</div></div><div class="head-actions"><button class="btn primary" data-act="new-appt">+ Appuntamento</button></div></div>
+  <div id="gcal-bar">${gcalBarHTML()}</div>
   <section class="kpis">
     <div class="kpi"><span class="eyebrow">Oggi</span><span class="v num">${todayList.length}</span><span class="s">${todayList.filter(a => a.done).length} già fatt${todayList.filter(a => a.done).length === 1 ? 'o' : 'i'}</span></div>
     <div class="kpi"><span class="eyebrow">Questa settimana</span><span class="v num">${weekN}</span><span class="s">Appuntamenti in agenda</span></div>
@@ -2406,6 +2536,9 @@ VIEWS.impostazioni = () => {
   const rules = S.settings.rules || [];
   return `
   <div class="head with-nav"><div><div class="eyebrow">Impostazioni</div><h1>Conti, categorie e dati</h1></div></div>
+  ${gcalClientId() ? `<section class="panel"><div class="panel-h"><h2>Google Calendar</h2>${gcalOn() ? '<button class="btn small" data-act="gcal-off">Scollega</button>' : '<button class="btn small primary" data-act="gcal-connect">Collega</button>'}</div>
+    <div class="list-row"><div class="l"><span class="muted">Calendario</span></div><span>${gcalOn() ? 'Luludex – Clienti' : 'Non collegato'}</span></div>
+  </section>` : ''}
   <section class="panel"><div class="panel-h"><h2>Tema</h2></div>
     <div class="seg" role="group" aria-label="Tema" style="width:min(100%,420px)">${[['light', 'Chiaro'], ['dark', 'Scuro'], ['auto', 'Automatico']].map(([v, l]) => `<button type="button" data-act="theme" data-v="${v}" aria-pressed="${curTheme() === v}">${l}</button>`).join('')}</div>
   </section>
@@ -3192,6 +3325,9 @@ document.addEventListener('click', e => {
     Promise.all(ids.map(x => del('transactions', x))).then(() => toast(`${ids.length} moviment${ids.length === 1 ? 'o eliminato' : 'i eliminati'}`));
     return;
   }
+  if (a === 'gcal-connect') return gcalConnect();
+  if (a === 'gcal-sync') return gcalSyncNow();
+  if (a === 'gcal-off') { if (!t.classList.contains('armed')) { t.classList.add('armed'); t.textContent = 'Conferma: scollega'; return; } return gcalDisconnect(); }
   if (a === 'theme') { try { localStorage.setItem('luludex.theme', t.dataset.v); } catch (e) {} applyTheme(); render(); return; }
   if (a === 'scope') { S.ui.scope = t.dataset.v; try { localStorage.setItem('luludex.scope', S.ui.scope); } catch (e) {} render(); return; }
   if (a === 'new-client') return clientForm();

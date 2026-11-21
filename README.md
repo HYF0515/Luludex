@@ -12,8 +12,11 @@ Once `config.js` contains the Luludex Firebase project, the app asks for sign-in
 Runs entirely on the **free Firebase plan (Spark)**: no Firebase Storage and no credit card.
 Invoice and diet files are saved in Firestore too (`users/{uid}/files/{key}`, split into parts of max 1 MB), up to 5 MB per file.
 
-### Still to do
-- **Google Calendar sync (one-way, Luludex → Google):** enable the Google Calendar API in the same Google project and request the calendar permission at sign-in; Luludex creates, updates and deletes the appointments in a dedicated calendar (e.g. "Luludex – Clienti"). On the iPhone, adding the Google account in Settings → Calendar shows them in the iPhone Calendar too.
+### Google Calendar (one-way, Luludex → Google)
+Appointments are copied to a dedicated calendar "Luludex – Clienti" created by the app (scope `calendar.app.created`: the app can only touch calendars it created).
+Each event has a fixed id derived from the appointment, so several devices can sync without duplicates. Edits and deletions in Luludex are mirrored; changes made in Google are not read back.
+Setup (Google Cloud console, project `luludex`): enable the **Google Calendar API**; on the OAuth consent screen add your Google account as a test user; in *Credentials* open the Web OAuth client and add `https://hyf0515.github.io` to *Authorized JavaScript origins*; put its client ID in `config.js` (`window.LULUDEX_GOOGLE_CLIENT_ID`).
+The Google token lasts one hour: while valid, changes sync automatically; afterwards tap **Sincronizza** in the Calendar section.
 
 ## How it works
 
