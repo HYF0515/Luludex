@@ -595,7 +595,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '48'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '50'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1763,6 +1763,8 @@ async function gimportLoad() {
 }
 function gimportRender() {
   const m = $('#modal'); if (!m) return;
+  const keep = { list: $('.gi-list')?.scrollTop || 0, sheet: m.querySelector('.sheet')?.scrollTop || 0, modal: m.scrollTop || 0 };
+  requestAnimationFrame(() => { const l = $('.gi-list'); if (l) l.scrollTop = keep.list; const sh = m.querySelector('.sheet'); if (sh) sh.scrollTop = keep.sheet; m.scrollTop = keep.modal; });
   const opts = clientChoices('', '— scegli il cliente —');
   const n = GI.rows.filter(r => r.on && !r.dup && r.clientId).length, found = GI.rows.filter(r => !r.dup).length, matched = GI.rows.filter(r => !r.dup && r.clientId).length;
   m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title"><header><h2 id="m-title">Importa da Google Calendar</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header>
@@ -1784,6 +1786,12 @@ function gimportRender() {
     </div>
     <footer class="gi-foot"><span class="muted">${GI.rows.length ? `${n} da importare` : ''}</span><div style="display:flex;gap:8px"><button type="button" class="btn ghost" data-act="close">Annulla</button><button type="button" class="btn primary" data-act="gi-do" ${n ? '' : 'disabled'}>Importa ${n || ''}</button></div></footer></div>`;
   m.hidden = false;
+}
+function gimportCounts() {
+  const n = GI.rows.filter(r => r.on && !r.dup && r.clientId).length, matched = GI.rows.filter(r => !r.dup && r.clientId).length;
+  const f = $('.gi-foot .muted'); if (f) f.textContent = n + ' da importare';
+  const b = $('[data-act="gi-do"]'); if (b) { b.disabled = !n; b.textContent = 'Importa ' + (n || ''); }
+  const all = $('#gi-all'); if (all) all.checked = !!n && n === matched;
 }
 async function gimportDo() {
   const list = GI.rows.filter(r => r.on && !r.dup && r.clientId);
@@ -2237,6 +2245,7 @@ function sheetApptRow(a) {
 }
 function paymentsSheet(id) {
   const c = byId('clients', id); if (!c) return;
+  const restore = keepModalScroll($('#m-title')?.textContent === c.name);
   const pays = clientPayments(id), tot = pays.reduce((s, t) => s + +t.amount, 0);
   const dues = [...S.packages.filter(p => p.clientId === id && pkgDue(p) > 0).map(p => ({ l: pkgLabel(p), sub: p.startDate ? dShort(p.startDate) + ' → ' + dShort(pkgEnd(p)) : '', due: pkgDue(p), act: 'pkg-pay', id: p.id })),
     ...S.visits.filter(v => v.clientId === id && visitDue(v) > 0).map(v => ({ l: VISIT[v.kind]?.l || 'Visita', sub: dShort(v.date), due: visitDue(v), act: 'visit-pay', id: v.id }))];
@@ -2260,7 +2269,7 @@ function paymentsSheet(id) {
       ${ds.length ? ds.map(dietRow).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessuna dieta.</p>'}
       <div class="pk-act"><button type="button" class="btn small primary" data-act="new-diet" data-client="${esc(id)}">+ Carica dieta</button></div></div>`; })()}
   </div></div>`;
-  m.hidden = false;
+  m.hidden = false; restore();
 }
 const clientInvoices = id => S.invoices.filter(i => i.clientId === id).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.number).localeCompare(String(a.number), 'it', { numeric: true }));
 function invoiceRow(i) {
@@ -2815,6 +2824,11 @@ function openForm(o) {
   const first = form.querySelector('input:not([type=hidden]):not([type=radio]),select'); first && setTimeout(() => first.focus(), 30);
 }
 function formValues(form) { const o = {}; for (const el of form.elements) { if (!el.name) continue; if (el.type === 'checkbox' && el.dataset.multi !== undefined) { (o[el.name] = o[el.name] || []); if (el.checked) o[el.name].push(el.value); } else if (el.type === 'checkbox') o[el.name] = el.checked; else if (el.type === 'radio') { if (el.checked) o[el.name] = el.value; } else o[el.name] = el.value; } return o; }
+function keepModalScroll(sameView) {
+  const m = $('#modal'); if (!m || m.hidden || !sameView) return () => {};
+  const top = m.scrollTop, inner = $$('#modal .tbl-wrap, #modal .gi-list, #modal .sheet').map(x => [x.scrollTop, x.scrollLeft]);
+  return () => requestAnimationFrame(() => { m.scrollTop = top; $$('#modal .tbl-wrap, #modal .gi-list, #modal .sheet').forEach((x, i) => { if (inner[i]) { x.scrollTop = inner[i][0]; x.scrollLeft = inner[i][1]; } }); });
+}
 function closeModal() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; formState = null; }
 const setSeg = (form, id, val) => { if (!form.elements[id]) return; form.elements[id].value = val; $$(`[data-seg="${id}"]`, form).forEach(x => x.setAttribute('aria-pressed', x.dataset.v === val)); };
 const showField = (form, id, on) => { const f = form.querySelector(`[data-f="${id}"]`); if (f) f.hidden = !on; };
@@ -3300,6 +3314,7 @@ function impConvert() {
 }
 function renderImport() {
   const b = $('#imp-body'); if (!b) return;
+  const restore = keepModalScroll(true); setTimeout(restore, 0);
   const accSel = `<div class="field"><label for="imp-acc">Conto di destinazione</label><select class="input" id="imp-acc">${accOptions().map(a => `<option value="${esc(a.v)}" ${a.v === IMP.accountId ? 'selected' : ''}>${esc(a.l)}</option>`).join('')}</select></div>`;
   const fileIn = `<div class="field"><label for="imp-file">File CSV o Excel</label><input class="input" type="file" id="imp-file" accept=".csv,.txt,text/csv,.xlsx,.xls,.ods"></div>`;
   if (!IMP.rows.length) {
@@ -3585,11 +3600,11 @@ document.addEventListener('change', async e => {
   if (el.dataset && el.dataset.pick) { S.ui[el.dataset.pick] = el.value; render(); return; }
   if (el.id === 'f-acc') { S.ui.fAcc = el.value; $('#txlist').innerHTML = txListFiltered(); }
   else if (el.dataset.gi != null) {
-    const r = GI.rows[+el.dataset.gi]; if (!r) return;
-    if (el.dataset.k === 'on') r.on = el.checked; else { r[el.dataset.k] = el.value; if (el.dataset.k === 'clientId') r.on = !!el.value; }
-    gimportRender();
+    const i = +el.dataset.gi, r = GI.rows[i]; if (!r) return;
+    if (el.dataset.k === 'on') r.on = el.checked; else { r[el.dataset.k] = el.value; if (el.dataset.k === 'clientId') { r.on = !!el.value; const cb = $(`[data-gi="${i}"][data-k="on"]`); if (cb) cb.checked = r.on; } }
+    gimportCounts();
   }
-  else if (el.id === 'gi-all') { GI.rows.forEach(r => { if (!r.dup && r.clientId) r.on = el.checked; }); gimportRender(); }
+  else if (el.id === 'gi-all') { GI.rows.forEach((r, i) => { if (!r.dup && r.clientId) { r.on = el.checked; const cb = $(`[data-gi="${i}"][data-k="on"]`); if (cb) cb.checked = r.on; } }); gimportCounts(); }
   else if (el.id === 'gi-cal' || el.id === 'gi-from' || el.id === 'gi-to') { GI[{ 'gi-cal': 'cal', 'gi-from': 'from', 'gi-to': 'to' }[el.id]] = el.value; }
   else if (el.dataset.fcat) {
     const id = el.dataset.fcat; S.ui.fCats = el.checked ? [...new Set([...S.ui.fCats, id])] : S.ui.fCats.filter(x => x !== id);
