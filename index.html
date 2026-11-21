@@ -604,7 +604,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '58'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '59'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2104,12 +2104,16 @@ function clientBodyHTML(c) {
         return shown.map(pkgHTML).join('') + (hid ? `<button class="btn small ghost" data-act="edit-client" data-id="${esc(c.id)}" style="align-self:flex-start">${hid} pacchett${hid === 1 ? 'o concluso' : 'i conclusi'} · vedi lo storico</button>` : ''); })()}${visitsHTML(c)}${!ps.length && !S.visits.some(v => v.clientId === c.id) ? '<p class="muted" style="margin:0;font-size:.88rem">Nessun pacchetto o visita.</p>' : ''}
       <div class="pk-act">${ps.length ? '' : `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>`}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button><button class="btn small" data-act="edit-client" data-id="${esc(c.id)}" title="Modifica o elimina il cliente">Modifica cliente</button>${c.inactive ? `<button class="btn small primary" data-act="client-reactivate" data-id="${esc(c.id)}">Riattiva</button>` : `<button class="btn small" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>${(() => { const na = nextAppt(c.id); return na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''; })()}`;
 }
+// pulsanti della scheda cliente, subito sotto il nome
+function sheetActsHTML(c) {
+  const subs = clientIsPT(c.id) || clientIsCoach(c.id), ps = clientPkgs(c.id);
+  return `<div class="pk-act sheet-acts">${!ps.length && subs ? `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>` : ''}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button>${c.inactive ? '' : `<button class="btn small" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>`;
+}
 function sheetSubsHTML(c) {
   const ps = clientPkgs(c.id), shown = ps.filter(p => pkgOpen(p) || pkgDue(p) > 0 || pkgCanRenew(p)), na = nextAppt(c.id);
   const subs = clientIsPT(c.id) || clientIsCoach(c.id);
   return `<div class="sheet-cl">
     ${subs ? sheetSection('subs', 'Stato abbonamento', '', `${shown.length ? shown.map(p => pkgHTML(p, { noPay: true })).join('') : `<p class="muted" style="margin:0">Nessun abbonamento in corso.</p>`}${ps.length && !shown.length ? `<div class="pk-act"><button type="button" class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button></div>` : ''}`) : ''}
-    <div class="pk-act">${!ps.length && subs ? `<button class="btn small" data-act="new-pkg" data-client="${esc(c.id)}">+ Pacchetto</button>` : ''}<button class="btn small" data-act="new-visit" data-client="${esc(c.id)}">+ Visita</button><button class="btn small" data-act="new-appt" data-client="${esc(c.id)}">+ Appuntamento</button>${c.inactive ? '' : `<button class="btn small" data-act="client-deactivate" data-id="${esc(c.id)}">Disattiva</button>`}</div>
     ${na ? `<small class="muted">Prossimo appuntamento: <b style="color:var(--fg)">${esc(apptWhen(na))}</b> · ${esc(SERVICES[na.service]?.l || '')}</small>` : ''}
   </div>`;
 }
@@ -2318,6 +2322,7 @@ function paymentsSheet(id) {
   const info = [['Telefono', c.phone], ['Email', c.email], ['Indirizzo', c.address], ['Codice Fiscale', c.cf], ['Partita IVA', c.vat], ['Note', c.notes]].filter(([, v]) => v);
   const m = $('#modal');
   m.innerHTML = `<div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="m-title" data-sheet-client="${esc(id)}"><header><h2 id="m-title">${esc(c.name)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Chiudi">×</button></header><div class="body">
+    ${sheetActsHTML(c)}
     ${c.inactive ? `<div class="pk-row" style="padding:10px 12px;border-radius:var(--r);background:var(--surface-2)"><span><b>Cliente disattivato</b>${c.inactiveSince ? ` <span class="muted">dal ${dShort(c.inactiveSince)}</span>` : ''}</span><button type="button" class="btn small primary" data-act="client-reactivate" data-id="${esc(id)}">Riattiva</button></div>` : ''}
     <div class="vs" style="border:0;padding:0"><div class="pk-row"><b>Dati personali</b><button type="button" class="btn small ghost" data-act="edit-client" data-id="${esc(id)}">Modifica dati</button></div>
       ${info.length ? info.map(([k, v]) => `<div class="list-row"><div class="l"><span class="muted">${k}</span></div><span style="overflow-wrap:anywhere;text-align:right;${k === 'Codice Fiscale' || k === 'Partita IVA' ? 'font-family:var(--f-data);' : ''}">${esc(v)}</span></div>`).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nessun dato inserito: aggiungi indirizzo e codice fiscale con “Modifica dati”.</p>'}</div>
