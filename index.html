@@ -91,8 +91,8 @@ h1{font-size:1.75rem;font-weight:700} h2{font-size:1.1rem;font-weight:700} h3{fo
 .nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:500}
 .nav a svg{width:18px;height:18px;flex:none}
 .nav a{position:relative}
-.nav-badge{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--warn);color:#fff;font-size:.7rem;font-weight:700;display:inline-grid;place-items:center;line-height:1}
-@media (max-width:760px){ .nav-badge{position:absolute;top:6px;left:calc(50% + 6px);margin:0} }
+.nav-badge{margin-left:auto;width:9px;height:9px;padding:0;border-radius:99px;background:var(--warn);color:#fff;font-size:.7rem;font-weight:700;display:inline-grid;place-items:center;line-height:1}
+@media (max-width:760px){ .nav-badge{position:absolute;top:8px;left:calc(50% + 9px);margin:0} }
 .pk.near{border-left:3px solid var(--warn);padding-left:10px;margin-left:-13px}
 .near-why{color:var(--warn);font-weight:600;font-size:.82rem}
 .nav a:hover{background:var(--surface-2);color:var(--fg)}
@@ -563,7 +563,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
   .nav{gap:4px}
   .nav a{flex-direction:column;gap:4px;padding:10px 2px;font-size:.66rem;line-height:1.15;text-align:center;justify-content:center;letter-spacing:-.01em}
   .nav a svg{width:22px;height:22px}
-  .nav-badge{position:absolute;top:4px;left:calc(50% + 7px);margin:0}
+  .nav-badge{position:absolute;top:8px;left:calc(50% + 9px);margin:0}
   .main{padding-left:max(24px, env(safe-area-inset-left,0px));padding-right:max(24px, env(safe-area-inset-right,0px))}
   /* il titolo non viene più tagliato: se lo spazio non basta, i comandi vanno sotto */
   .head.with-nav{flex-wrap:wrap;row-gap:10px}
@@ -607,7 +607,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '61'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '62'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1039,7 +1039,7 @@ function renderNav() {
   const r = route();
   const navEl = $('#nav'), keepX = navEl.scrollLeft;
   $('#nav').innerHTML = Object.keys(ROUTES).map(k =>
-    { const n = k === 'clienti' ? nearEndPkgs().length : 0; return `<a href="#${k}" class="${MORE_ROUTES.includes(k) ? 'more' : ''}" ${k === r ? 'aria-current="page"' : ''} aria-label="${esc(routeLabel(k))}${n ? ` (${n} abbonament${n === 1 ? 'o' : 'i'} quasi al termine)` : ''}" title="${esc(routeLabel(k))}">${navIcon(k)}<span>${esc(routeLabel(k))}</span>${n ? `<b class="nav-badge" aria-hidden="true">${n}</b>` : ''}</a>`; }).join('')
+    { const n = k === 'clienti' && (nearEndPkgs().length || S.packages.some(p => !isInactive(p.clientId) && toRenew(p))) ? 1 : 0; return `<a href="#${k}" class="${MORE_ROUTES.includes(k) ? 'more' : ''}" ${k === r ? 'aria-current="page"' : ''} aria-label="${esc(routeLabel(k))}${n ? ' (ci sono avvisi)' : ''}" title="${esc(routeLabel(k))}">${navIcon(k)}<span>${esc(routeLabel(k))}</span>${n ? `<b class="nav-badge" aria-hidden="true"></b>` : ''}</a>`; }).join('')
 ;
   // sul telefono la barra scorre: tengo la posizione e porto al centro la voce attiva
   navEl.scrollLeft = keepX;
