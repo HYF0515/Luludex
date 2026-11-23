@@ -607,7 +607,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '62'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '63'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2010,7 +2010,7 @@ VIEWS.calendario = () => {
     <div class="kpi"><span class="eyebrow">Da segnare</span><span class="v num ${pending.length ? 'warn' : ''}">${pending.length}</span><span class="s">${pending.length ? 'Appuntamenti passati non segnati' : 'Tutto segnato'}</span></div>
     <div class="kpi"><span class="eyebrow">Prossimo</span><span class="v num" style="font-size:1.1rem">${(() => { const n = apptsSorted(S.appointments.filter(a => !a.done && !apptPast(a)))[0]; return n ? esc(apptWhen(n)) : '—'; })()}</span><span class="s">${(() => { const n = apptsSorted(S.appointments.filter(a => !a.done && !apptPast(a)))[0]; return n ? esc(byId('clients', n.clientId)?.name || '') + ' · ' + esc(SERVICES[n.service]?.l || '') : 'Nessun appuntamento in arrivo'; })()}</span></div>
   </section>
-  ${pending.length ? `<div class="banner"><div><b>${pending.length === 1 ? '1 appuntamento passato da segnare' : pending.length + ' appuntamenti passati da segnare'}.</b> <span class="muted">Premi “Lezione fatta” o “Visita fatta” per contarli nelle schede dei clienti.</span></div>${mode === 'settimana' && weekStart(apptsSorted(pending)[0].date) !== weekStart(anchor) ? `<button class="btn small" data-act="cal-day" data-d="${apptsSorted(pending)[0].date}">Vai al primo</button>` : ''}</div>` : ''}
+  ${pending.length ? `<div class="banner"><div><b>${pending.length === 1 ? '1 appuntamento passato da segnare' : pending.length + ' appuntamenti passati da segnare'}.</b></div>${mode === 'settimana' && weekStart(apptsSorted(pending)[0].date) !== weekStart(anchor) ? `<button class="btn small" data-act="cal-day" data-d="${apptsSorted(pending)[0].date}">Vai al primo</button>` : ''}</div>` : ''}
   <div class="cal-tools">
     <div class="seg" role="group" aria-label="Vista" style="min-width:min(100%,240px)">${[['settimana', 'Settimana'], ['mese', 'Mese']].map(([v, l]) => `<button type="button" data-act="cal-mode" data-v="${v}" aria-pressed="${mode === v}">${l}</button>`).join('')}</div>
     <div class="grp"><div class="month-nav"><button class="icon-btn" data-act="cal-move" data-d="-1" aria-label="Precedente">‹</button><span class="cal-range">${range}</span><button class="icon-btn" data-act="cal-move" data-d="1" aria-label="Successivo">›</button></div><button class="btn small" data-act="cal-today">Oggi</button></div>
