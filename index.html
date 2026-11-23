@@ -609,7 +609,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '64'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '65'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2155,9 +2155,9 @@ VIEWS.clienti = () => {
     <div class="head-actions"><button class="btn" data-act="new-visit">+ Visita</button><button class="btn primary" data-act="new-client">+ Cliente</button></div></div>
   <section class="kpis">
     <div class="kpi"><span class="eyebrow">Clienti attivi</span><span class="v num">${nActiveAll}</span><span class="s">${open.length} pacchett${open.length === 1 ? 'o' : 'i'} in corso</span></div>
-    <div class="kpi"><span class="eyebrow">Da incassare</span><span class="v num ${due > 0 ? 'neg' : ''}">${money0(due)}</span><span class="s">${nDue ? `${nDue} tra pacchetti e visite da saldare` : 'Tutto saldato'}</span></div>
+    <div class="kpi"><span class="eyebrow">Da incassare</span><span class="v num ${due > 0 ? 'neg' : ''}">${money0(due)}</span></div>
     <div class="kpi"><span class="eyebrow">Lezioni a ${MESI[+ym.slice(5) - 1].toLowerCase()}</span><span class="v num">${lessonsM}</span><span class="s">Lezioni PT · ${visitsM} visit${visitsM === 1 ? 'a' : 'e'} nel mese</span></div>
-    <div class="kpi"><span class="eyebrow">Da rinnovare</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · lezioni finite' : 'Nessun abbonamento da rinnovare'}</span></div>
+    <div class="kpi"><span class="eyebrow">Da rinnovare</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span></div>
   </section>
   ${(() => {
     const ne = nearEndPkgs(), rn = expiring;
