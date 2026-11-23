@@ -604,7 +604,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '59'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '60'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2153,8 +2153,16 @@ VIEWS.clienti = () => {
     <div class="kpi"><span class="eyebrow">Lezioni a ${MESI[+ym.slice(5) - 1].toLowerCase()}</span><span class="v num">${lessonsM}</span><span class="s">Lezioni PT · ${visitsM} visit${visitsM === 1 ? 'a' : 'e'} nel mese</span></div>
     <div class="kpi"><span class="eyebrow">Da rinnovare</span><span class="v num ${expiring.length ? 'warn' : ''}">${expiring.length}</span><span class="s">${expiring.length ? expiring.slice(0, 2).map(p => esc(byId('clients', p.clientId)?.name || '?')).join(', ') + (expiring.length > 2 ? '…' : '') + ' · lezioni finite' : 'Nessun abbonamento da rinnovare'}</span></div>
   </section>
-  ${(() => { const ne = nearEndPkgs(); if (!ne.length) return ''; return `<div class="banner"><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><b>${ne.length === 1 ? '1 abbonamento quasi al termine' : ne.length + ' abbonamenti quasi al termine'}</b>
-      ${ne.slice(0, 5).map(p => `<span><button type="button" class="cl-name" style="display:inline;font-size:.92rem" data-act="client-pays" data-id="${esc(p.clientId)}">${esc(byId('clients', p.clientId)?.name || '?')}</button> <span class="muted">· ${esc(pkgLabel(p))} · ${esc(pkgNearEnd(p))}</span></span>`).join('')}${ne.length > 5 ? `<span class="muted">e altri ${ne.length - 5}</span>` : ''}</div></div>`; })()}
+  ${(() => {
+    const ne = nearEndPkgs(), rn = expiring;
+    if (!ne.length && !rn.length) return '';
+    const why = p => p.kind === 'pt' && +p.lessons && pkgDone(p) >= +p.lessons ? 'lezioni finite' : pkgEnd(p) ? 'scaduto il ' + dShort(pkgEnd(p)) : 'concluso';
+    const row = (p, txt) => `<span><button type="button" class="cl-name" style="display:inline;font-size:.92rem" data-act="client-pays" data-id="${esc(p.clientId)}">${esc(byId('clients', p.clientId)?.name || '?')}</button> <span class="muted">· ${esc(pkgLabel(p))} · ${esc(txt)}</span></span>`;
+    const block = (title, list, txt) => list.length ? `<div style="display:flex;flex-direction:column;gap:4px;min-width:0"><b>${title}</b>${list.slice(0, 5).map(p => row(p, txt(p))).join('')}${list.length > 5 ? `<span class="muted">e altri ${list.length - 5}</span>` : ''}</div>` : '';
+    return `<div class="banner"><div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+      ${block(ne.length === 1 ? '1 abbonamento quasi al termine' : ne.length + ' abbonamenti quasi al termine', ne, pkgNearEnd)}
+      ${block(rn.length === 1 ? '1 abbonamento da rinnovare' : rn.length + ' abbonamenti da rinnovare', rn, why)}
+    </div></div>`; })()}
   <div class="cl-tools">
     <div class="field"><label for="c-q">Cerca cliente</label><input class="input" id="c-q" type="search" placeholder="Nome, telefono, email…" value="${esc(S.ui.cq || '')}"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button type="button" class="btn small ghost" data-act="cl-all" data-v="open">Apri tutti</button><button type="button" class="btn small ghost" data-act="cl-all" data-v="close">Chiudi tutti</button><label class="check" style="margin-left:4px"><input type="checkbox" id="cl-sel-all"> Seleziona tutti</label></div>
