@@ -609,7 +609,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '65'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '66'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1032,7 +1032,7 @@ const ICONS = {
   obiettivi: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const ROUTES = { panoramica: 'Panoramica', mensile: 'Mensile', movimenti: 'Movimenti', clienti: 'Clienti', calendario: 'Calendario', budget: 'Budget', patrimonio: 'Patrimonio', obiettivi: 'Obiettivi', impostazioni: 'Impostazioni' };
+const ROUTES = { clienti: 'Clienti', panoramica: 'Panoramica', mensile: 'Mensile', movimenti: 'Movimenti', calendario: 'Calendario', budget: 'Budget', patrimonio: 'Patrimonio', obiettivi: 'Obiettivi', impostazioni: 'Impostazioni' };
 const route = () => { const h = location.hash.slice(1); return ROUTES[h] ? h : 'panoramica'; };
 const MORE_ROUTES = ['budget', 'patrimonio', 'obiettivi', 'impostazioni'];
 const routeLabel = k => ROUTES[k];
