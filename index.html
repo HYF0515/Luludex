@@ -609,7 +609,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '66'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '67'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1640,7 +1640,7 @@ const gcalEvId = a => 'a0' + [...new TextEncoder().encode(a.id)].map(b => b.toSt
 function gcalEvent(a) {
   const sv = SERVICES[a.service] || { l: 'Appuntamento' };
   const ev = { id: gcalEvId(a), summary: `${apptNames(a) || 'Cliente'} · ${sv.l}${a.done ? ' ✓' : ''}`, description: a.notes || '', status: 'confirmed',
-    colorId: a.service === 'pt' ? '9' : a.service === 'prima' ? '2' : '5', extendedProperties: { private: { luludex: '1', apptId: a.id } } };
+    colorId: (SERVICES[a.service] || SERVICES.pt).g, extendedProperties: { private: { luludex: '1', apptId: a.id } } };
   if (a.time) {
     const [h, m] = a.time.split(':').map(Number), dur = +a.duration || 60, end = new Date(2000, 0, 1, h, m + dur);
     const endDate = addDays(a.date, Math.floor((h * 60 + m + dur) / 1440));
@@ -1742,7 +1742,7 @@ function guessClient(title) {
   }
   return best?.id || '';
 }
-const guessService = title => { const t = normTxt(title); return /\bprima\b/.test(t) ? 'prima' : /controllo|visita|dieta|nutri/.test(t) ? 'controllo' : 'pt'; };
+const guessService = title => { const t = normTxt(title); return /\bprima\b/.test(t) ? 'prima' : /controllo|visita|dieta|nutri/.test(t) ? 'controllo' : /consulen/.test(t) ? 'consulenza' : /coaching|scheda|schede|distanza/.test(t) ? 'coaching' : 'pt'; };
 async function gimportOpen() {
   try { if (!(LS.get('luludex.gcalTok', null)?.read && gcalTok())) await gcalAuthRead(); }
   catch (e) { toast(e.message, true); return; }
@@ -1952,7 +1952,8 @@ function clientSummary(c) {
   return { line, pills: pills.join('') };
 }
 /* ---------- calendario e appuntamenti ---------- */
-const SERVICES = { pt: { l: 'PT', c: 'acc', done: 'Lezione fatta' }, prima: { l: 'Prima visita', c: 'pos', done: 'Visita fatta' }, controllo: { l: 'Visita di controllo', c: 'warn', done: 'Visita fatta' } };
+const SERVICES = { pt: { l: 'PT', c: 'acc', done: 'Lezione fatta', g: '11' }, coaching: { l: 'Coaching / Schede', c: 'acc', done: 'Fatto', g: '4' }, consulenza: { l: 'Consulenza PT', c: 'acc', done: 'Fatta', g: '10' }, prima: { l: 'Prima visita', c: 'pos', done: 'Visita fatta', g: '9' }, controllo: { l: 'Visita di controllo', c: 'warn', done: 'Visita fatta', g: '9' } };
+const isVisitSvc = sv => sv === 'prima' || sv === 'controllo';
 const apptKey = a => a.date + 'T' + (a.time || '00:00');
 const apptsSorted = list => [...list].sort((a, b) => apptKey(a).localeCompare(apptKey(b)));
 const apptPast = a => { const now = new Date(), d = isoOf(now), t = pad(now.getHours()) + ':' + pad(now.getMinutes()); return a.date < d || (a.date === d && (a.time || '00:00') <= t); };
@@ -1975,7 +1976,7 @@ function apptRow(a) {
   return `<div class="ap-row ${a.done ? 'done' : ''} ${late ? 'late' : ''}">
     <button type="button" class="ap-main" data-act="edit-appt" data-id="${esc(a.id)}"><span class="ap-time">${esc(a.time || '—')}</span><span class="l"><b>${esc(apptNames(a))}</b></span></button>
     <span class="ap-side"><span class="pill ${sv.c === 'acc' ? 'work' : sv.c}">${esc(sv.l)}</span>${a.done
-      ? `<span class="pill pos">✓ ${a.service === 'pt' ? 'Lezione fatta' : 'Visita fatta'}</span><button type="button" class="btn small ghost" data-act="appt-undo" data-id="${esc(a.id)}">Annulla</button>`
+      ? `<span class="pill pos">✓ ${(SERVICES[a.service] || SERVICES.pt).done}</span><button type="button" class="btn small ghost" data-act="appt-undo" data-id="${esc(a.id)}">Annulla</button>`
       : `${late ? '<span class="pill warn">Da segnare</span>' : ''}<button type="button" class="btn small ${late ? 'primary' : ''}" data-act="appt-done" data-id="${esc(a.id)}">${sv.done}</button>`}</span>
   </div>`;
 }
@@ -2029,13 +2030,13 @@ function apptForm(a, preset) {
     intro: !isNew && a.done ? `<p class="muted" style="margin:0;font-size:.88rem">Già segnato come fatto${a.packageId && byId('packages', a.packageId) ? ': lezione contata in ' + esc(pkgLabel(byId('packages', a.packageId))) : ''}. Per toglierlo usa “Annulla” nel calendario.</p>` : '',
     fields: [
       { id: 'clientId', label: 'Cliente', type: 'select', value: a.clientId || '', options: clientChoices(a.clientId, '— scegli il cliente —') },
-      { id: 'service', type: 'seg', label: 'Servizio', value: a.service, options: [{ v: 'pt', l: 'PT' }, { v: 'prima', l: 'Prima visita' }, { v: 'controllo', l: 'Visita di controllo' }] },
+      { id: 'service', type: 'select', label: 'Servizio', value: a.service, options: [{ v: 'pt', l: 'PT' }, { v: 'coaching', l: 'Coaching / Schede' }, { v: 'consulenza', l: 'Consulenza PT' }, { v: 'prima', l: 'Prima visita' }, { v: 'controllo', l: 'Visita di controllo' }] },
       { id: 'clientId2', label: 'Vengono in due? Secondo cliente', type: 'select', value: a.clientId2 || '', options: clientChoices(a.clientId2, '— no, solo uno —') },
       [{ id: 'date', label: 'Data', type: 'date', value: a.date, required: true }, { id: 'time', label: 'Ora', type: 'time', value: a.time || '', required: true }],
       { id: 'duration', label: 'Durata', type: 'select', value: String(a.duration || 60), options: [30, 45, 60, 75, 90, 120].map(m => ({ v: String(m), l: m + ' minuti' })) },
       { id: 'notes', label: 'Note', value: a.notes || '', placeholder: 'Es. gambe e core, portare il diario alimentare' }
     ],
-    onChange(v, form, ev) { showField(form, 'clientId2', v.service === 'pt'); if (ev?.target?.name === 'service' && v.service !== 'pt' && form.elements.duration.value === '60') form.elements.duration.value = v.service === 'prima' ? '60' : '45'; },
+    onChange(v, form, ev) { showField(form, 'clientId2', v.service === 'pt'); if (ev?.target?.name === 'service' && v.service !== 'pt' && form.elements.duration.value === '60') form.elements.duration.value = v.service === 'controllo' ? '45' : '60'; },
     validate(v) {
       if (!v.clientId) return 'Scegli il cliente.';
       if (v.service === 'pt' && v.clientId2 && v.clientId2 === v.clientId) return 'Il secondo cliente deve essere diverso dal primo.';
@@ -2057,7 +2058,8 @@ function apptForm(a, preset) {
 async function apptDone(a) {
   if (!a || a.done) return;
   const c = byId('clients', a.clientId);
-  if (a.service !== 'pt') return visitForm(null, a.clientId, { kind: a.service, date: a.date, apptId: a.id });
+  if (isVisitSvc(a.service)) return visitForm(null, a.clientId, { kind: a.service, date: a.date, apptId: a.id });
+  if (a.service !== 'pt') { await put('appointments', a.id, { ...strip(a), done: true }); toast('Segnato come fatto'); return; }
   const ym = ymOf(a.date), doc = { ...strip(a), done: true, packageId: '', countedYm: '', packageId2: '' }, msgs = [], miss = [];
   for (const [i, cid] of apptClients(a).entries()) {
     const p = ptPkgFor(cid, a.date), name = byId('clients', cid)?.name || 'Il cliente';
@@ -2078,9 +2080,9 @@ async function apptUndo(a) {
   toast(a.visitId ? 'Segno tolto. La visita resta registrata nella scheda del cliente: eliminala da lì se serve.' : a.packageId || a.packageId2 ? (a.packageId && a.packageId2 ? 'Lezione tolta dai due abbonamenti' : 'Lezione tolta dall\'abbonamento') : 'Segno tolto');
 }
 // Tipo di cliente: PT se ha pacchetti PT/Coaching o appuntamenti PT; Nutrizione se ha visite (o appuntamenti di visita)
-const clientIsPT = id => S.packages.some(p => p.clientId === id && p.kind === 'pt') || S.appointments.some(a => a.service === 'pt' && apptHas(a, id)) || S.transactions.some(t => t.clientId === id && t.categoryId === 'c-pt');
-const clientIsCoach = id => S.packages.some(p => p.clientId === id && p.kind === 'coaching') || S.transactions.some(t => t.clientId === id && t.categoryId === 'c-coaching');
-const clientIsNutri = id => S.visits.some(v => v.clientId === id) || S.appointments.some(a => a.service !== 'pt' && a.clientId === id) || S.transactions.some(t => t.clientId === id && (t.categoryId === 'c-prima-visita' || t.categoryId === 'c-visita-ctrl'));
+const clientIsPT = id => S.packages.some(p => p.clientId === id && p.kind === 'pt') || S.appointments.some(a => (a.service === 'pt' || a.service === 'consulenza') && apptHas(a, id)) || S.transactions.some(t => t.clientId === id && t.categoryId === 'c-pt');
+const clientIsCoach = id => S.packages.some(p => p.clientId === id && p.kind === 'coaching') || S.appointments.some(a => a.service === 'coaching' && a.clientId === id) || S.transactions.some(t => t.clientId === id && t.categoryId === 'c-coaching');
+const clientIsNutri = id => S.visits.some(v => v.clientId === id) || S.appointments.some(a => isVisitSvc(a.service) && a.clientId === id) || S.transactions.some(t => t.clientId === id && (t.categoryId === 'c-prima-visita' || t.categoryId === 'c-visita-ctrl'));
 const clientTags = id => `${clientIsPT(id) ? '<span class="ctag pt">PT</span>' : ''}${clientIsCoach(id) ? '<span class="ctag co">Coaching</span>' : ''}${clientIsNutri(id) ? '<span class="ctag nu">Nutrizione</span>' : ''}`;
 // Selezione di più clienti: disattiva, riattiva o elimina insieme
 const clSel = new Set();
@@ -2324,7 +2326,7 @@ function sheetPayRow(t) {
 }
 function sheetApptRow(a) {
   const sv = SERVICES[a.service] || SERVICES.pt, late = !a.done && apptPast(a);
-  return `<button type="button" class="vs-row" data-act="edit-appt" data-id="${esc(a.id)}"><span class="l" style="flex-direction:row;gap:14px;align-items:baseline"><span class="num" style="min-width:150px">${esc(apptWhen(a))}</span><b>${esc(sv.l)}${apptClients(a).length > 1 ? ' · in due' : ''}</b></span><span>${a.done ? `<span class="pill pos">✓ ${a.service === 'pt' ? 'Lezione fatta' : 'Visita fatta'}</span>` : late ? '<span class="pill warn">Da segnare</span>' : '<span class="pill work">In programma</span>'}</span></button>`;
+  return `<button type="button" class="vs-row" data-act="edit-appt" data-id="${esc(a.id)}"><span class="l" style="flex-direction:row;gap:14px;align-items:baseline"><span class="num" style="min-width:150px">${esc(apptWhen(a))}</span><b>${esc(sv.l)}${apptClients(a).length > 1 ? ' · in due' : ''}</b></span><span>${a.done ? `<span class="pill pos">✓ ${(SERVICES[a.service] || SERVICES.pt).done}</span>` : late ? '<span class="pill warn">Da segnare</span>' : '<span class="pill work">In programma</span>'}</span></button>`;
 }
 function paymentsSheet(id) {
   const c = byId('clients', id); if (!c) return;
