@@ -167,7 +167,7 @@ details.alert-box{display:block}.alert-box>summary{list-style:none;display:flex;
 .ctag.pt{background:var(--accent-soft);color:var(--accent)}.ctag.nu{background:var(--pos-soft);color:var(--pos)}.ctag.co{background:var(--warn-soft);color:var(--warn)}
 
 .gcal-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px 12px;margin-bottom:14px;font-size:.9rem}
-.gcal-bar>span:nth-child(2){flex:1;min-width:0}
+.gcal-bar>span:nth-child(2){flex:1 1 auto;white-space:nowrap}.gcal-bar .muted{white-space:normal}
 .sheet.wide{width:min(980px,100%);max-width:980px}
 .gi-list{display:flex;flex-direction:column;max-height:min(55vh,560px);overflow:auto;border-top:1px solid var(--line)}
 .gi-row{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(150px,220px) minmax(120px,170px);gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
@@ -609,7 +609,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '68'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '69'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1658,7 +1658,7 @@ async function gcalCalendar() {
 }
 async function gcalSync({ manual = false } = {}) {
   if (!gcalClientId() || !gcalOn() || GC.busy) return;
-  if (!gcalTok()) { if (manual) GC.err = 'Tocca Sincronizza per riconnettere Google.'; renderGcalBar(); return; }
+  if (!gcalTok()) { renderGcalBar(); return; }
   GC.busy = true; GC.err = ''; renderGcalBar();
   try {
     const cal = encodeURIComponent(await gcalCalendar());
@@ -1682,7 +1682,7 @@ async function gcalSync({ manual = false } = {}) {
     GC.last = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }); GC.sig = gcalSig();
     if (manual) toast(n ? `Google Calendar aggiornato (${n} modific${n === 1 ? 'a' : 'he'})` : 'Google Calendar già aggiornato');
   } catch (e) {
-    GC.err = e.code === 401 ? 'Tocca Sincronizza per riconnettere Google.' : e.code === 403 ? 'Google ha negato l\'accesso: controlla che la Google Calendar API sia attiva nel progetto.' : (e.message || 'Sincronizzazione non riuscita.');
+    GC.err = e.code === 401 ? '' : e.code === 403 ? 'Google ha negato l\'accesso: controlla che la Google Calendar API sia attiva nel progetto.' : (e.message || 'Sincronizzazione non riuscita.');
     if (manual) toast(GC.err, true);
   } finally { GC.busy = false; renderGcalBar(); }
 }
@@ -1706,8 +1706,8 @@ async function gcalSyncNow() {
 function gcalBarHTML() {
   if (!gcalClientId()) return '';
   if (!gcalOn()) return `<div class="gcal-bar"><span class="gcal-ic" aria-hidden="true">G</span><span>Google Calendar</span><button type="button" class="btn small" data-act="gcal-connect">Collega</button></div>`;
-  const st = GC.busy ? 'Sincronizzazione…' : GC.err ? GC.err : GC.last ? 'Sincronizzato alle ' + GC.last : gcalTok() ? 'Collegato' : 'Collegato · tocca Sincronizza';
-  return `<div class="gcal-bar ${GC.err ? 'err' : ''}"><span class="gcal-ic" aria-hidden="true">G</span><span>Google Calendar <span class="muted">· ${esc(st)}</span></span><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn small" data-act="gi-open">Importa da Google</button><button type="button" class="btn small" data-act="gcal-sync" ${GC.busy ? 'disabled' : ''}>Sincronizza</button></div></div>`;
+  const st = GC.busy ? 'Sincronizzazione…' : GC.err || '';
+  return `<div class="gcal-bar ${GC.err ? 'err' : ''}"><span class="gcal-ic" aria-hidden="true">G</span><span>Google Calendar${st ? ` <span class="muted">· ${esc(st)}</span>` : ''}</span><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn small" data-act="gi-open">Importa</button><button type="button" class="btn small" data-act="gcal-sync" ${GC.busy ? 'disabled' : ''}>Sincronizza</button></div></div>`;
 }
 function renderGcalBar() { const el = $('#gcal-bar'); if (el) el.innerHTML = gcalBarHTML(); }
 async function gcalDisconnect() {
