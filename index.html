@@ -153,6 +153,14 @@ input.input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
 .msel-g{display:flex;flex-direction:column;gap:2px}.msel-g .check{padding:4px 0;display:flex;align-items:center;gap:8px}
 .msel-act{display:flex;justify-content:space-between;gap:8px;padding:8px 0 0;border-top:1px solid var(--line)}
 .tx-all{margin:2px 0 6px;font-size:.88rem}
+tr.grp{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.tbl-wrap input[data-budget],.tbl-wrap input[data-budget-year]{min-width:88px}
+@media (max-width:760px){.tbl-wrap input[data-budget],.tbl-wrap input[data-budget-year]{min-width:74px;padding-left:8px;padding-right:8px}.tbl-wrap td,.tbl-wrap th{padding-left:4px;padding-right:4px}}
+.grp-h{display:flex;justify-content:space-between;align-items:center;gap:10px}.grp-r{display:inline-flex;align-items:center;gap:8px}.grp-r b{color:var(--fg);letter-spacing:0;font-size:.85rem;text-transform:none}
+tr.grp td svg{transition:transform .2s ease}
+tr.grp[aria-expanded="false"] td svg{transform:rotate(-90deg)}
+tr.grp td{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--surface-2);padding-top:8px;padding-bottom:8px}
+.bh-tile{gap:6px;padding:12px 10px}.hero .bh-tile .tag{white-space:normal;overflow:visible;text-align:center;line-height:1.2;padding:3px 8px}.bh-bar{width:100%;height:5px;margin-top:2px}.bh-s{font-size:.72rem;color:var(--hero-muted);text-align:center;line-height:1.3}.bh-s b{color:var(--hero-fg);font-weight:600}
 .sheet-cl{display:flex;flex-direction:column;gap:12px;padding-bottom:4px}.sheet-cl .pk-act{margin-top:0}
 details.alert-box{display:block}.alert-box>summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer}.alert-box>summary::-webkit-details-marker{display:none}
 .alert-box>summary .muted{flex:1;min-width:0}.alert-box>summary .chev{transition:transform .2s;flex:none}.alert-box[open]>summary .chev{transform:rotate(180deg)}
@@ -609,7 +617,7 @@ html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}
 <script>
 (() => {
 "use strict";
-const APP_VERSION = '69'; // tenere allineato con CACHE in sw.js
+const APP_VERSION = '70'; // tenere allineato con CACHE in sw.js
 /* ---------- utilità ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2586,101 +2594,129 @@ function annualBudget(id, year = S.ui.budgetYear) {
   let t = 0; for (let m = 1; m <= 12; m++) t += monthBudget(id, year + '-' + pad(m)); return t;
 }
 const budgetModeSeg = () => `<div class="seg" role="group" aria-label="Tipo di budget" style="min-width:210px"><button type="button" data-act="budget-mode" data-v="mese" aria-pressed="${S.ui.budgetMode !== 'anno'}">Mensile</button><button type="button" data-act="budget-mode" data-v="anno" aria-pressed="${S.ui.budgetMode === 'anno'}">Annuale</button></div>`;
-// Entrate previste (forecast) per categoria: si salvano come i budget (budgetsMonth), sulle categorie di entrata
+// Entrate incassate per categoria in un periodo ('AAAA' o 'AAAA-MM')
 const incomeIn = (prefix) => { const o = {}; for (const t of S.transactions) if (t.kind === 'entrata' && String(t.date).startsWith(prefix)) o[t.categoryId] = (o[t.categoryId] || 0) + (+t.amount || 0); return o; };
-function incomeForecastPanel(ym) {
-  const cats = catsOf('entrata'), got = incomeIn(ym), defB = S.settings.budgets || {}, [y, m] = ym.split('-').map(Number);
-  const totF = cats.reduce((a, c) => a + monthBudget(c.id, ym), 0), totG = cats.reduce((a, c) => a + (got[c.id] || 0), 0);
-  const rows = cats.map(c => {
-    const f = monthBudget(c.id, ym), g = got[c.id] || 0, r = f ? g / f : 0;
-    return `<tr><td><div class="catname"><i class="dot" style="background:${esc(c.color)}"></i><span>${esc(c.name)}</span></div>
-      <div class="bar ${f && r >= 1 ? 'done' : ''}" style="margin-top:8px"><i style="width:${Math.min(100, r * 100).toFixed(1)}%"></i></div></td>
-      <td class="r" style="width:150px"><input class="input num" style="text-align:right" data-budget="${esc(c.id)}" inputmode="decimal" placeholder="—" value="${hasMonthOverride(c.id, ym) || f ? (f ? String(f).replace('.', ',') : '') : ''}" aria-label="Entrate previste ${esc(c.name)}"></td>
-      <td class="r num">${money(g)}</td>
-      <td class="r num ${f && g - f < 0 ? 'neg' : f ? 'pos' : ''}">${f ? (g - f >= 0 ? '+' : '−') + money(Math.abs(g - f)) : '<span class="muted">—</span>'}</td></tr>`;
-  }).join('');
-  return `<section class="panel privacy"><div class="panel-h"><h2>Entrate previste</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill num">Previste ${money0(totF)}</span><span class="pill pos num">Incassate ${money0(totG)}</span></div></div>
-    ${cats.length ? `<div class="tbl-wrap"><table><thead><tr><th>Categoria</th><th class="r">Previste</th><th class="r">Incassate</th><th class="r">Differenza</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">Nessuna categoria di entrata.</p>'}
-    <div class="bar ${totF && totG >= totF ? 'done' : ''}" style="height:8px;margin-top:10px"><i style="width:${totF ? Math.min(100, totG / totF * 100).toFixed(1) : 0}%"></i></div>
-    <div class="pk-row" style="margin-top:6px"><span class="muted">${totF ? pct(totG / totF) + ' della previsione' : 'Scrivi quanto prevedi di incassare per categoria'}</span><span class="num ${totF && totG - totF < 0 ? 'neg' : 'pos'}">${totF ? (totG - totF < 0 ? 'Mancano ' + money0(totF - totG) : 'Superata di ' + money0(totG - totF)) : ''}</span></div>
-  </section>`;
+// ---------- Budget (come Bubudex): entrate previste, spese, PAC e risparmio previsto in un'unica tabella ----------
+function planValue(id, ym) {
+  if (String(id).startsWith('pac:') && !hasMonthOverride(id, ym) && !(+(S.settings.budgets || {})[id])) { const h = S.holdings.find(x => 'pac:' + x.id === id); return pacOn(h) ? +h.pac.amount : 0; }
+  return monthBudget(id, ym);
 }
-function incomeForecastYearPanel(year) {
-  const cats = catsOf('entrata'), got = incomeIn(year), today = todayISO(), cy = today.slice(0, 4);
-  const elapsed = year < cy ? 12 : year > cy ? 0 : +today.slice(5, 7);
-  let totF = 0, totFtd = 0, totG = 0;
-  const rows = cats.map(c => {
-    let f = 0, ftd = 0; for (let m = 1; m <= 12; m++) { const v = monthBudget(c.id, year + '-' + pad(m)); f += v; if (m <= elapsed) ftd += v; }
-    const g = got[c.id] || 0; totF += f; totFtd += ftd; totG += g;
-    if (!f && !g) return '';
-    const r = f ? g / f : 0;
-    return `<tr><td><div class="catname"><i class="dot" style="background:${esc(c.color)}"></i><span>${esc(c.name)}</span></div>
-      <div class="bar ${f && r >= 1 ? 'done' : ''}" style="margin-top:8px"><i style="width:${Math.min(100, r * 100).toFixed(1)}%"></i></div></td>
-      <td class="r num">${f ? money0(f) : '<span class="muted">—</span>'}${ftd && ftd !== f ? `<br><span class="muted" style="font-size:.78rem">a oggi ${money0(ftd)}</span>` : ''}</td>
-      <td class="r num">${money0(g)}${f ? `<br><span class="muted" style="font-size:.78rem">${pct(r)}</span>` : ''}</td>
-      <td class="r num ${ftd && g - ftd < 0 ? 'neg' : ftd ? 'pos' : ''}">${ftd ? (g - ftd >= 0 ? '+' : '−') + money0(Math.abs(g - ftd)) : '<span class="muted">—</span>'}</td></tr>`;
-  }).join('');
-  return `<section class="panel privacy"><div class="panel-h"><h2>Entrate previste nel ${year}</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill num">Previste ${money0(totF)}</span><span class="pill pos num">Incassate ${money0(totG)}</span></div></div>
-    ${rows ? `<div class="tbl-wrap"><table><thead><tr><th>Categoria</th><th class="r">Previste</th><th class="r">Incassate</th><th class="r">Rispetto a oggi</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="muted" style="margin:0">Nessuna previsione: scrivila mese per mese nel budget mensile.</p>`}
-    ${totFtd ? `<div class="pk-row" style="margin-top:10px"><span class="muted">Previste fino a oggi ${money0(totFtd)}</span><span class="num ${totG - totFtd < 0 ? 'neg' : 'pos'}">${totG - totFtd < 0 ? 'Sotto di ' + money0(totFtd - totG) : 'Sopra di ' + money0(totG - totFtd)}</span></div>` : ''}
-  </section>`;
+function actualIn(id, prefix) {
+  let any = false, t = 0;
+  for (const tx of S.transactions) {
+    if (!String(tx.date).startsWith(prefix)) continue; any = true;
+    if (String(id).startsWith('pac:')) { if (tx.kind === 'investimento' && 'pac:' + tx.holdingId === id) t += +tx.amount || 0; }
+    else if (tx.kind === 'entrata' && tx.categoryId === id) t += +tx.amount || 0;
+  }
+  return any ? t : null;
 }
+function budgetHero(inP, inA, outP, outA, pacP, pacA) {
+  const savP = inP - outP - pacP, savA = inA - outA - pacA;
+  const tile = (label, tag, plan, act, kind) => {
+    const r = plan > 0 ? act / plan : 0, over = kind === 'out' ? r > 1 : false;
+    const color = kind === 'in' ? 'var(--pos)' : kind === 'out' ? (r > 1 ? 'var(--bar-over)' : r >= .9 ? 'var(--bar-near)' : 'var(--bar)') : (act < 0 ? 'var(--bar-over)' : 'var(--accent)');
+    return `<div class="hero-tile bh-tile"><span class="tag ${tag}">${label}</span><span class="v num ${plan < 0 ? 'neg' : ''}">${money0(plan)}</span>
+      <div class="bar bh-bar"><i style="width:${Math.max(0, Math.min(100, r * 100)).toFixed(1)}%;background:${color}"></i></div>
+      <span class="s bh-s">Effettivo <b class="num ${over || (kind === 'sav' && act < 0) ? 'neg' : ''}">${money0(act)}</b>${plan > 0 ? ` · ${pct(r)}` : ''}</span></div>`;
+  };
+  return `<section class="hero privacy"><div class="hero-tiles">${tile('Entrate previste', 'in', inP, inA, 'in')}${tile('Spese previste', 'out', outP, outA, 'out')}${tile('Risparmio previsto', 'sav', savP, savA, 'sav')}</div></section>`;
+}
+// gruppi della tabella del budget, richiudibili (ricordati su questo dispositivo)
+const budgetGrp = (key, t, v, cols) => { const k = key + '|grp|' + t, f = !!folded[k]; return { f, html: `<tr class="grp" data-act="fold-grp" data-k="${esc(k)}" aria-expanded="${!f}"><td colspan="${cols}"><div class="grp-h"><span>${t}</span><span class="grp-r"><b class="num">${money0(v)}</b>${CHEV}</span></div></td></tr>` }; };
+const budgetSection = (key, t, v, cols, rows) => { if (!rows) return ''; const g = budgetGrp(key, t, v, cols); return g.html + (g.f ? '' : rows); };
+// le spese divise come nel resto dell'app: di lavoro e personali (secondo il filtro Tutto / Lavoro / Personale)
+const budgetExpGroups = () => [['lavoro', 'Spese di lavoro'], ['personale', 'Spese personali']].filter(([sc]) => !S.ui.scope || S.ui.scope === 'tutto' || S.ui.scope === sc).map(([sc, t]) => [t, catsOf('spesa').filter(c => catScope(c) === sc)]);
+VIEWS.budget = () => {
+  if (S.ui.budgetMode === 'anno') return budgetYearView();
+  const ym = S.ui.budgetMonth, st = monthStats(ym), defB = S.settings.budgets || {}, prevP = (+ym.slice(0, 4) - 1) + ym.slice(4), prevY = +ym.slice(0, 4) - 1;
+  const groups = budgetExpGroups(), cats = groups.flatMap(([, cs]) => cs);
+  const totB = cats.reduce((a, c) => a + monthBudget(c.id, ym), 0);
+  const expRow = c => {
+    const b = monthBudget(c.id, ym), sp = st.byCat[c.id] || 0, r = b ? sp / b : 0;
+    const cls = b && r > 1 ? 'over' : b && r >= .8 ? 'near' : '';
+    return `<tr><td><div class="catname"><i class="dot" style="background:${esc(c.color)}"></i><span>${esc(c.name)}</span></div>${sp ? `<small class="muted money" style="display:block;font-size:.75rem">Speso ${money0(sp)}</small>` : ''}
+      <div class="bar ${cls}" style="margin-top:8px"><i style="width:${Math.min(100, r * 100).toFixed(1)}%"></i></div></td>
+      <td class="r" style="width:150px"><input class="input num" style="text-align:right" id="b-${esc(c.id)}" data-budget="${esc(c.id)}" inputmode="decimal" placeholder="—" value="${b ? String(b).replace('.', ',') : ''}" aria-label="Budget ${esc(c.name)}"></td>
+      <td class="r num">${(() => { const ps = spentIn(c.id, prevP); return ps == null ? '<span class="muted">—</span>' : money(ps); })()}</td></tr>`;
+  };
+  const planRow = (id, name, color, val, actNow, prev) => `<tr><td><div class="catname"><i class="dot" style="background:${esc(color)}"></i><span>${esc(name)}</span></div>${actNow ? `<small class="muted money" style="display:block;font-size:.75rem">Finora ${money0(actNow)}</small>` : ''}</td>
+      <td class="r" style="width:150px"><input class="input num" style="text-align:right" id="b-${esc(id)}" data-budget="${esc(id)}" inputmode="decimal" placeholder="—" value="${val ? String(val).replace('.', ',') : ''}" aria-label="Previsione ${esc(name)}"></td>
+      <td class="r num">${prev == null ? '<span class="muted">—</span>' : money(prev)}</td></tr>`;
+  const inCats = catsOf('entrata'), pacs = S.holdings.filter(h => pacOn(h) || hasMonthOverride('pac:' + h.id, ym));
+  const inRows = inCats.map(c => planRow(c.id, c.name, c.color, monthBudget(c.id, ym), actualIn(c.id, ym), actualIn(c.id, prevP))).join('');
+  const pacRows = pacs.map(h => planRow('pac:' + h.id, h.name, '#9EB9C9', planValue('pac:' + h.id, ym), actualIn('pac:' + h.id, ym), actualIn('pac:' + h.id, prevP))).join('');
+  const totIn = inCats.reduce((x, c) => x + monthBudget(c.id, ym), 0), totPac = pacs.reduce((x, h) => x + planValue('pac:' + h.id, ym), 0), sav = totIn - totB - totPac;
+  const expSecs = groups.map(([t, cs]) => budgetSection('budget', t, cs.reduce((a, c) => a + monthBudget(c.id, ym), 0), 3, cs.map(expRow).join(''))).join('');
+  return `
+  <div class="head with-nav"><div><div class="eyebrow"><span class="lbl-long">Budget mensile</span><span class="lbl-short">Budget</span></div><h1>${ymLabel(ym)}</h1></div><div class="head-actions">${eyeBtn()}${monthNav('budgetMonth')}</div></div>
+  <div class="budget-mode-row">${budgetModeSeg()}</div>
+  ${budgetHero(totIn, st.inc, totB, st.exp, totPac, pacs.reduce((x, h) => x + (actualIn('pac:' + h.id, ym) || 0), 0))}
+  <div class="prop-actions"><button class="btn small" data-act="budget-all">Imposta per tutti i mesi</button></div>
+  ${S.ui.scope === 'personale' ? '' : activityPanel(ym)}
+  <section class="panel"><div class="panel-h"><h2>Per categoria</h2></div>
+    ${cats.length || inCats.length ? `<div class="tbl-wrap"><table><thead><tr><th>Categoria</th><th class="r">Budget</th><th class="r">Nel ${prevY}</th></tr></thead><tbody>${budgetSection('budget', 'Entrate previste', totIn, 3, inRows)}${expSecs}${budgetSection('budget', 'Investimenti (PAC)', totPac, 3, pacRows)}</tbody>
+      <tfoot><tr><td><b>Risparmio previsto</b><small class="muted money" style="display:block;font-size:.75rem">Entrate ${money0(totIn)} − spese ${money0(totB)}${totPac ? ' − PAC ' + money0(totPac) : ''}</small></td><td class="r num" colspan="2"><b class="${sav < 0 ? 'neg' : 'pos'}">${money0(sav)}</b></td></tr></tfoot></table></div>` : `<div class="empty"><p>Crea prima le categorie nelle impostazioni.</p><a class="btn" href="#impostazioni">Vai alle impostazioni</a></div>`}
+  </section>`;
+};
 function budgetYearView() {
-  const year = S.ui.budgetYear, y = yearBudget(year), cats = scopedCats('spesa');
-  const yb = S.settings.budgetsYear || {};
+  const year = S.ui.budgetYear, y = yearBudget(year), yb = S.settings.budgetsYear || {}, mb = S.settings.budgets || {};
+  const groups = budgetExpGroups(), cats = groups.flatMap(([, cs]) => cs);
   const spentAll = {};
   for (const t of S.transactions) if (isOut(t) && inScope(t) && String(t.date).startsWith(year)) spentAll[t.categoryId] = (spentAll[t.categoryId] || 0) + (+t.amount || 0);
-  const totB = y.yearB, totS = y.spent, left = totB - totS;
-  const rows = cats.map(c => {
-    const own = +yb[c.id] > 0, b = annualBudget(c.id, year), s = spentAll[c.id] || 0, r = b ? s / b : 0;
+  const totB = cats.reduce((a, c) => a + annualBudget(c.id, year), 0);
+  const expRow = c => {
+    const own = +yb[c.id] > 0, b = annualBudget(c.id, year), sp = spentAll[c.id] || 0, r = b ? sp / b : 0;
     let sumM = 0, varies = false; for (let m = 1; m <= 12; m++) { const v = monthBudget(c.id, year + '-' + pad(m)); sumM += v; if (hasMonthOverride(c.id, year + '-' + pad(m))) varies = true; }
     const expected = b * y.elapsed / 12;
-    const cls = b && r > 1 ? 'over' : b && s > expected * 1.05 && y.isCur ? 'near' : '';
+    const cls = b && r > 1 ? 'over' : b && sp > expected * 1.05 && y.isCur ? 'near' : '';
     const sub = own ? `<small class="muted money" style="display:block;font-size:.75rem">Budget annuale dedicato${+mb[c.id] ? ` · mensile ${money0(+mb[c.id])}` : ''}</small>` : (sumM ? `<small class="muted money" style="display:block;font-size:.75rem">${varies ? 'Somma dei budget dei 12 mesi' : 'Da budget mensile: 12 × ' + money0(sumM / 12)}</small>` : '');
     return `<tr><td><div class="catname"><i class="dot" style="background:${esc(c.color)}"></i><span>${esc(c.name)}</span></div>${sub}
       <div class="bar ${cls}" style="margin-top:8px"><i style="width:${Math.min(100, r * 100).toFixed(1)}%"></i></div></td>
       <td class="r" style="width:160px"><input class="input num" style="text-align:right" id="by-${esc(c.id)}" data-budget-year="${esc(c.id)}" inputmode="decimal" placeholder="${sumM ? String(Math.round(sumM * 100) / 100).replace('.', ',') : '—'}" value="${own ? String(+yb[c.id]).replace('.', ',') : ''}" aria-label="Budget annuale ${esc(c.name)}">${prevHint('Speso ' + (+year - 1), spentIn(c.id, String(+year - 1)))}</td>
-      <td class="r num">${money0(s)}${b ? `<br><span class="muted" style="font-size:.78rem">${pct(r)}</span>` : ''}</td>
-      <td class="r num ${b && b - s < 0 ? 'neg' : ''}">${b ? money0(b - s) : '<span class="muted">—</span>'}</td></tr>`;
-  }).join('');
+      <td class="r num">${money0(sp)}${b ? `<br><span class="muted" style="font-size:.78rem">${pct(r)}</span>` : ''}</td>
+      <td class="r num ${b && b - sp < 0 ? 'neg' : ''}">${b ? money0(b - sp) : '<span class="muted">—</span>'}</td></tr>`;
+  };
+  // entrate previste e PAC: somma delle previsioni dei 12 mesi (si scrivono nel budget mensile)
+  const ySum = id => { let t = 0; for (let m = 1; m <= 12; m++) t += planValue(id, year + '-' + pad(m)); return t; };
+  const inCats = catsOf('entrata'), pacs = S.holdings.filter(h => pacOn(h) || [...Array(12)].some((_, i) => hasMonthOverride('pac:' + h.id, year + '-' + pad(i + 1))));
+  const roRow = (id, name, color, plan, act) => `<tr><td><div class="catname"><i class="dot" style="background:${esc(color)}"></i><span>${esc(name)}</span></div>
+      ${plan ? `<div class="bar ${act >= plan ? '' : 'near'}" style="margin-top:8px"><i style="width:${Math.min(100, act / plan * 100).toFixed(1)}%;background:var(--chart-in)"></i></div>` : ''}</td>
+      <td class="r num" style="width:160px">${plan ? money0(plan) : '<span class="muted">—</span>'}</td>
+      <td class="r num">${money0(act)}</td>
+      <td class="r num">${plan ? money0(plan - act) : '<span class="muted">—</span>'}</td></tr>`;
+  const inRows = inCats.map(c => roRow(c.id, c.name, c.color, ySum(c.id), actualIn(c.id, year) || 0)).join('');
+  const pacRows = pacs.map(h => roRow('pac:' + h.id, h.name, '#9EB9C9', ySum('pac:' + h.id), actualIn('pac:' + h.id, year) || 0)).join('');
+  const totIn = inCats.reduce((x, c) => x + ySum(c.id), 0), totPac = pacs.reduce((x, h) => x + ySum('pac:' + h.id), 0), sav = totIn - totB - totPac;
+  const expSecs = groups.map(([t, cs]) => budgetSection('budget-y', t, cs.reduce((a, c) => a + annualBudget(c.id, year), 0), 4, cs.map(expRow).join(''))).join('');
   return `
   <div class="head with-nav"><div><div class="eyebrow"><span class="lbl-long">Budget annuale</span><span class="lbl-short">Budget</span></div><h1>Anno ${year}</h1></div><div class="head-actions">${eyeBtn()}<div class="month-nav"><button class="icon-btn" data-act="ykey" data-key="budgetYear" data-d="-1" aria-label="Anno precedente">‹</button>${yearPick('budgetYear')}<button class="icon-btn" data-act="ykey" data-key="budgetYear" data-d="1" aria-label="Anno successivo">›</button></div></div></div>
   <div class="budget-mode-row">${budgetModeSeg()}</div>
-  ${(() => { const yt = yearTotals(year); return heroCard('Budget annuale', money0(totB), [['Entrate', 'in', money0(yt.inc), 'pos'], ['Speso', 'out', money0(totS), 'neg'], ['Disponibile', 'sav', money0(left), left < 0 ? 'neg' : ''], [y.isCur ? 'Proiezione' : 'Speso anno', 'neu', money0(y.isCur ? y.proj : totS), totB && (y.isCur ? y.proj : totS) > totB ? 'neg' : '']]); })()}
+  ${(() => { const yt = yearTotals(year); return budgetHero(totIn, yt.inc, totB, yt.out, totPac, pacs.reduce((x, h) => x + (actualIn('pac:' + h.id, year) || 0), 0)); })()}
+  ${S.ui.scope === 'personale' ? '' : activityYearPanel(year)}
   <section class="panel"><div class="panel-h"><h2>Per categoria</h2></div>
-    ${cats.length ? `<div class="tbl-wrap"><table><thead><tr><th>Categoria</th><th class="r">Budget annuale</th><th class="r">Speso</th><th class="r">Residuo</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty"><p>Crea prima le categorie di spesa nelle impostazioni.</p></div>`}
-  </section>
-  ${incomeForecastYearPanel(year)}
-  ${S.ui.scope === 'personale' ? '' : activityYearPanel(year)}`;
-}
-VIEWS.budget = () => {
-  if (S.ui.budgetMode === 'anno') return budgetYearView();
-  const ym = S.ui.budgetMonth, st = monthStats(ym), budgets = Object.fromEntries(S.categories.map(c => [c.id, monthBudget(c.id, ym)])), defB = S.settings.budgets || {};
-  const cats = scopedCats('spesa');
-  const totB = cats.reduce((s, c) => s + (+budgets[c.id] || 0), 0), totS = cats.reduce((s, c) => s + (st.byCat[c.id] || 0), 0);
-  const isCur = ym === ymOf(todayISO());
-  const [y, m] = ym.split('-').map(Number), dim = new Date(y, m, 0).getDate(), dayN = isCur ? new Date().getDate() : dim;
-  const projected = isCur && dayN > 0 ? totS / dayN * dim : totS;
-  const rows = cats.map(c => {
-    const b = +budgets[c.id] || 0, s = st.byCat[c.id] || 0, r = b ? s / b : 0;
-    const cls = b && r > 1 ? 'over' : b && r >= .8 ? 'near' : '';
-    return `<tr><td><div class="catname"><i class="dot" style="background:${esc(c.color)}"></i><span>${esc(c.name)}</span></div>${hasMonthOverride(c.id, ym) && (+defB[c.id] || 0) !== b ? `<small class="muted" style="display:block;font-size:.75rem">Solo per ${ymLabel(ym).toLowerCase()} · predefinito ${money0(+defB[c.id] || 0)}</small>` : ''}${+(S.settings.budgetsYear || {})[c.id] ? `<small class="muted" style="display:block;font-size:.75rem">Budget annuale ${money0(+S.settings.budgetsYear[c.id])}</small>` : ''}
-      <div class="bar ${cls}" style="margin-top:8px"><i style="width:${Math.min(100, r * 100).toFixed(1)}%"></i></div></td>
-      <td class="r" style="width:150px"><input class="input num" style="text-align:right" id="b-${esc(c.id)}" data-budget="${esc(c.id)}" inputmode="decimal" placeholder="—" value="${b ? String(b).replace('.', ',') : ''}" aria-label="Budget ${esc(c.name)}">${prevHint('Speso ' + ymShort(ym) + ' ' + (+ym.slice(0, 4) - 1), spentIn(c.id, (+ym.slice(0, 4) - 1) + ym.slice(4)))}</td>
-      <td class="r num">${money(s)}</td>
-      <td class="r num ${b && b - s < 0 ? 'neg' : ''}">${b ? money(b - s) : '<span class="muted">—</span>'}</td></tr>`;
-  }).join('');
-  return `
-  <div class="head with-nav"><div><div class="eyebrow"><span class="lbl-long">Budget mensile</span><span class="lbl-short">Budget</span></div><h1>${ymLabel(ym)}</h1></div><div class="head-actions">${eyeBtn()}${monthNav('budgetMonth')}</div></div>
-  <div class="budget-mode-row">${budgetModeSeg()}</div>
-  ${heroCard('Budget del mese', money0(totB), [['Entrate', 'in', money0(st.inc), 'pos'], ['Speso', 'out', money0(totS), 'neg'], ['Disponibile', 'sav', money0(totB - totS), totB - totS < 0 ? 'neg' : ''], [isCur ? 'Proiezione' : 'Speso mese', 'neu', money0(projected), totB && projected > totB ? 'neg' : '']])}
-  <div class="prop-actions"><button class="btn small" data-act="budget-copy">Copia da un altro mese</button><button class="btn small" data-act="budget-default">Usa come predefiniti</button></div>
-  ${incomeForecastPanel(ym)}
-  ${S.ui.scope === 'personale' ? '' : activityPanel(ym)}
-  <section class="panel"><div class="panel-h"><h2>Per categoria</h2></div>
-    ${cats.length ? `<div class="tbl-wrap"><table><thead><tr><th>Categoria</th><th class="r">Budget</th><th class="r">Speso</th><th class="r">Residuo</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty"><p>Crea prima le categorie di spesa nelle impostazioni.</p><a class="btn" href="#impostazioni">Vai alle impostazioni</a></div>`}
+    ${cats.length || inCats.length ? `<div class="tbl-wrap"><table><thead><tr><th>Categoria</th><th class="r">Budget annuale</th><th class="r">Effettivo</th><th class="r">Residuo</th></tr></thead><tbody>${budgetSection('budget-y', 'Entrate previste', totIn, 4, inRows)}${expSecs}${budgetSection('budget-y', 'Investimenti (PAC)', totPac, 4, pacRows)}</tbody>
+      <tfoot><tr><td><b>Risparmio previsto</b><small class="muted money" style="display:block;font-size:.75rem">Entrate ${money0(totIn)} − spese ${money0(totB)}${totPac ? ' − PAC ' + money0(totPac) : ''}</small></td><td class="r num" colspan="3"><b class="${sav < 0 ? 'neg' : 'pos'}">${money0(sav)}</b></td></tr></tfoot></table></div>` : `<div class="empty"><p>Crea prima le categorie nelle impostazioni.</p></div>`}
   </section>`;
-};
+}
+// Imposta per tutti i mesi: i budget (spese, entrate previste, PAC) e gli obiettivi di questo mese su tutto l'anno
+function budgetAllForm() {
+  const ym = S.ui.budgetMonth, y = ym.slice(0, 4), cats = catsOf('spesa');
+  const vals = Object.fromEntries([...cats.map(c => [c.id, monthBudget(c.id, ym)]), ...catsOf('entrata').map(c => [c.id, monthBudget(c.id, ym)]), ...S.holdings.filter(pacOn).map(h => ['pac:' + h.id, planValue('pac:' + h.id, ym)])]);
+  const tot = cats.reduce((a, c) => a + vals[c.id], 0), tg = monthTargets(ym);
+  openForm({
+    title: 'Imposta per tutti i mesi',
+    intro: `<p style="margin:0">I budget di ${ymLabel(ym).toLowerCase()} (spese <b class="num">${money0(tot)}</b>, con entrate previste${Object.keys(tg).length ? ', obiettivi di attività' : ''} e PAC) verranno usati per tutti i mesi del ${y}, sostituendo quelli già scritti.</p>`,
+    fields: [],
+    submitLabel: 'Imposta',
+    async onSubmit() {
+      const all = { ...(S.settings.budgetsMonth || {}) }, tAll = { ...(S.settings.targets || {}) };
+      for (let m = 1; m <= 12; m++) { const k = y + '-' + pad(m); all[k] = { ...(all[k] || {}), ...vals }; if (Object.keys(tg).length) tAll[k] = { ...tg }; }
+      const ok = await saveSettings({ budgetsMonth: all, ...(Object.keys(tg).length ? { targets: tAll } : {}) });
+      ok && toast('Budget impostati per tutti i mesi del ' + y);
+      return ok;
+    }
+  });
+}
 
 VIEWS.patrimonio = () => {
   const bal = balances(), balN = balancesNative(), liquid = sumObj(bal), inv = investTotal(), cost = S.holdings.reduce((a, h) => a + holdingCost(h), 0);
@@ -3066,36 +3102,6 @@ function unusedCategories() {
   return S.categories.filter(c => !used.has(c.id)).sort((a, b) => a.kind.localeCompare(b.kind) || otherLast(a, b) || a.name.localeCompare(b.name, 'it'));
 }
 // Copia nel mese selezionato i budget (o la spesa effettiva) di un altro mese
-function budgetCopyForm() {
-  const ym = S.ui.budgetMonth;
-  const first = S.transactions.reduce((m, t) => t.date && t.date.slice(0, 7) < m ? t.date.slice(0, 7) : m, addMonths(ym, -12));
-  const opts = []; for (let x = addMonths(ym, 12); x >= first; x = addMonths(x, -1)) if (x !== ym) opts.push({ v: x, l: ymLabel(x) + (x === addMonths(ym, -1) ? ' (mese precedente)' : x === addMonths(ym, -12) ? ' (stesso mese, anno prima)' : '') });
-  openForm({
-    title: 'Copia in ' + ymLabel(ym).toLowerCase(),
-    intro: `<p class="muted" style="margin:0;font-size:.88rem">Imposto il budget di ogni categoria di spesa e le entrate previste di ${esc(ymLabel(ym).toLowerCase())} copiando da un altro mese. Dopo puoi correggere le singole voci.</p>`,
-    fields: [
-      { id: 'from', label: 'Da quale mese', type: 'select', value: addMonths(ym, -1), options: opts },
-      { id: 'what', type: 'seg', label: 'Cosa copiare', value: 'budget', options: [{ v: 'budget', l: 'Il suo budget' }, { v: 'spent', l: 'Spese ed entrate effettive' }] },
-      { id: 'round', label: 'Arrotonda la spesa effettiva alla decina di euro superiore', type: 'checkbox', value: true },
-      { id: 'targets', label: 'Copia anche gli obiettivi di attività (lezioni, visite, coaching)', type: 'checkbox', value: true }
-    ],
-    onChange(v, form) { showField(form, 'round', v.what === 'spent'); },
-    submitLabel: 'Copia',
-    async onSubmit(v) {
-      const src = v.from, byCat = { ...monthStats(src).byCat, ...incomeIn(src) }, m = {};
-      for (const c of [...catsOf('spesa'), ...catsOf('entrata')]) {
-        let val = v.what === 'spent' ? (byCat[c.id] || 0) : monthBudget(c.id, src);
-        if (v.what === 'spent') val = v.round ? Math.ceil(val / 10) * 10 : Math.round(val);
-        m[c.id] = Math.round(val * 100) / 100;
-      }
-      const all = { ...(S.settings.budgetsMonth || {}), [ym]: m }, patch = { budgetsMonth: all };
-      if (v.targets && Object.keys(monthTargets(src)).length) patch.targets = { ...(S.settings.targets || {}), [ym]: { ...monthTargets(src) } };
-      const ok = await saveSettings(patch);
-      ok && toast(`Copiato ${v.what === 'spent' ? 'la spesa effettiva' : 'il budget'} di ${ymLabel(src).toLowerCase()} in ${ymLabel(ym).toLowerCase()}`);
-      return ok;
-    }
-  });
-}
 function cleanCatsForm() {
   const list = unusedCategories();
   if (!list.length) { toast('Tutte le categorie hanno almeno un movimento.'); return; }
@@ -3585,6 +3591,7 @@ document.addEventListener('click', e => {
   if (a === 'gcal-sync') return gcalSyncNow();
   if (a === 'gcal-off') { if (!t.classList.contains('armed')) { t.classList.add('armed'); t.textContent = 'Conferma: scollega'; return; } return gcalDisconnect(); }
   if (a === 'theme') { try { localStorage.setItem('luludex.theme', t.dataset.v); } catch (e) {} applyTheme(); render(); return; }
+  if (a === 'fold-grp') { const k = t.dataset.k; if (folded[k]) delete folded[k]; else folded[k] = 1; try { localStorage.setItem('luludex.folded', JSON.stringify(folded)); } catch (e) {} render(); return; }
   if (a === 'scope') { S.ui.scope = t.dataset.v; try { localStorage.setItem('luludex.scope', S.ui.scope); } catch (e) {} render(); return; }
   if (a === 'new-client') return clientForm();
   if (a === 'edit-client') return clientForm(byId('clients', id));
@@ -3637,13 +3644,7 @@ document.addEventListener('click', e => {
   if (a === 'visit-pay') return visitPay(byId('visits', id));
   if (a === 'cfilter') { S.ui.cFilter = t.dataset.v; render(); return; }
   if (a === 'ctype') { S.ui.cType = t.dataset.v; render(); return; }
-  if (a === 'budget-copy') return budgetCopyForm();
-  if (a === 'budget-default') {
-    const ym = S.ui.budgetMonth, nb = {};
-    [...catsOf('spesa'), ...catsOf('entrata')].forEach(c => { const v = monthBudget(c.id, ym); if (v) nb[c.id] = v; });
-    saveSettings({ budgets: nb }).then(ok => ok && toast('Budget di ' + ymLabel(ym).toLowerCase() + ' impostati come predefiniti per i mesi senza budget specifico'));
-    return;
-  }
+  if (a === 'budget-all') return budgetAllForm();
   if (a === 'budget-mode') { S.ui.budgetMode = t.dataset.v; render(); return; }
   if (a === 'ykey') { S.ui[t.dataset.key] = String(+S.ui[t.dataset.key] + +t.dataset.d); render(); return; }
   if (a === 'year') { S.ui.year = String(+S.ui.year + +t.dataset.d); render(); return; }
@@ -3751,11 +3752,11 @@ document.addEventListener('change', async e => {
     const v = el.value.trim() === '' ? 0 : parseNum(el.value);
     if (isNaN(v) || v < 0) { toast('Inserisci un importo valido.', true); return; }
     const ym = S.ui.budgetMonth, cid = el.dataset.budget;
-    if (monthBudget(cid, ym) === v && (el.value.trim() !== '' || !hasMonthOverride(cid, ym))) return;
+    if (planValue(cid, ym) === v) return;
+    // casella vuota = nessun budget per questo mese (non torna al predefinito)
     const all = { ...(S.settings.budgetsMonth || {}) }, m = { ...(all[ym] || {}) };
-    if (el.value.trim() === '') delete m[cid]; else m[cid] = v;
-    if (Object.keys(m).length) all[ym] = m; else delete all[ym];
-    if (await saveSettings({ budgetsMonth: all })) toast(el.value.trim() === '' ? 'Budget del mese rimosso: uso il predefinito' : 'Budget di ' + ymLabel(ym).toLowerCase() + ' aggiornato');
+    m[cid] = v; all[ym] = m;
+    if (await saveSettings({ budgetsMonth: all })) toast(v ? 'Budget di ' + ymLabel(ym).toLowerCase() + ' aggiornato' : 'Budget di ' + ymLabel(ym).toLowerCase() + ' tolto');
   }
   else if (el.dataset.target) {
     const v = el.value.trim() === '' ? 0 : Math.round(parseNum(el.value));
